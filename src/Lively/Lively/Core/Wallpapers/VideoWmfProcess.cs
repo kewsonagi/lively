@@ -1,16 +1,17 @@
-﻿using Newtonsoft.Json;
+﻿using Lively.Common;
+using Lively.Common.Helpers.Shell;
+using Lively.Common.JsonConverters;
+using Lively.Helpers;
+using Lively.Models;
+using Lively.Models.Enums;
+using Lively.Models.Message;
+using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using System.Drawing.Imaging;
-using Lively.Models;
-using Lively.Common;
-using Lively.Common.API;
-using Lively.Common.Helpers.Shell;
-using Lively.Helpers;
 
 namespace Lively.Core.Wallpapers
 {
@@ -21,6 +22,8 @@ namespace Lively.Core.Wallpapers
         private bool isInitialized;
         private static int globalCount;
         private readonly int uniqueId;
+
+        public event EventHandler Exited;
 
         public bool IsLoaded { get; private set; } = false;
 
@@ -57,12 +60,12 @@ namespace Lively.Core.Wallpapers
             ProcessStartInfo start = new ProcessStartInfo
             {
                 Arguments = cmdArgs.ToString(),
-                FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "wmf", "Lively.PlayerWmf.exe"),
+                FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Constants.PlayerPartialPaths.WmfPath),
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = false,
                 UseShellExecute = false,
-                WorkingDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "wmf")
+                WorkingDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Constants.PlayerPartialPaths.WmfDir)
             };
 
             Process webProcess = new Process
@@ -122,8 +125,8 @@ namespace Lively.Core.Wallpapers
             }
             Proc.OutputDataReceived -= Proc_OutputDataReceived;
             Proc?.Dispose();
-            DesktopUtil.RefreshDesktop();
             IsExited = true;
+            Exited?.Invoke(this, EventArgs.Empty);
         }
 
         private void Proc_OutputDataReceived(object sender, DataReceivedEventArgs e)
@@ -170,11 +173,6 @@ namespace Lively.Core.Wallpapers
             }
         }
 
-        public void Stop()
-        {
-            Pause();
-        }
-
         private void SendMessage(string msg)
         {
             try
@@ -199,7 +197,6 @@ namespace Lively.Core.Wallpapers
                 Proc.Kill();
             }
             catch { }
-            DesktopUtil.RefreshDesktop();
         }
 
         public void Close()

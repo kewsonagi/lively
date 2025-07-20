@@ -1,332 +1,194 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Lively.Common;
+using Lively.Common.Extensions;
+using Lively.Common.Factories;
 using Lively.Common.Helpers.Storage;
+using Lively.Common.Services;
 using Lively.Core;
+using Lively.Helpers;
 using Lively.Models;
-using Lively.Services;
-using Lively.Views;
-using Microsoft.Extensions.DependencyInjection;
+using Lively.Models.Enums;
 using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace Lively.ViewModels
 {
     public partial class LibraryPreviewViewModel : ObservableObject
     {
-        public event EventHandler<WallpaperUpdateArgs> DetailsUpdated;
-
-        private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
-        private readonly LibraryModel libData;
-        private readonly ILibraryPreview Winstance;
-        private readonly LivelyInfoModel livelyInfoCopy;
-        private readonly string thumbnailOriginalPath;
-
+        public event EventHandler<bool> OnWindowCloseRequested;
         private readonly IUserSettingsService userSettings;
-        private readonly IDesktopCore desktopCore;
-        //private readonly LibraryViewModel libraryVm;
+        private readonly IWallpaperLibraryFactory wallpaperLibraryFactory;
 
-        public LibraryPreviewViewModel(ILibraryPreview wInterface, IWallpaper wallpaper)
+        // Animated preview parameters, ref: 1. 30c,120s 2. 15c, 90s
+        private readonly int previewAnimationDelay = 1000 * 1 / 30; //in milliseconds (1/fps)
+        private readonly int previewSaveAnimationDelay = 1000 * 1 / 120;
+        private readonly int previewTotalFrames = 60;
+
+        public LibraryPreviewViewModel(IUserSettingsService userSettings, IWallpaperLibraryFactory wallpaperLibraryFactory)
         {
-            this.userSettings = App.Services.GetRequiredService<IUserSettingsService>();
-            this.desktopCore = App.Services.GetRequiredService<IDesktopCore>();
-            //this.libraryVm = App.Services.GetRequiredService<LibraryViewModel>();
-
-            Winstance = wInterface;
-            Winstance.CaptureProgress += WInstance_CaptureProgress;
-            Winstance.PreviewUpdated += WInstance_PreviewUpdated;
-            Winstance.ThumbnailUpdated += WInstance_ThumbnailUpdated;
-            Winstance.WallpaperAttached += WInstance_WallpaperAttached;
-
-            libData = wallpaper.Model;
-            if (libData.DataType == LibraryItemType.edit)
-            {
-                //taking backup to restore original data if user cancel..
-                livelyInfoCopy = new LivelyInfoModel(libData.LivelyInfo);
-                thumbnailOriginalPath = libData.ThumbnailPath;
-
-                //use existing data for editing already imported wallpaper..
-                Title = libData.LivelyInfo.Title;
-                Desc = libData.LivelyInfo.Desc;
-                Url = libData.LivelyInfo.Contact;
-                Author = libData.LivelyInfo.Author;
-
-                //consistency..
-                libData.ImagePath = libData.ThumbnailPath;
-            }
-            else
-            {
-                //guess data based on filename, window title etc..
-                if (libData.LivelyInfo.Type == WallpaperType.videostream)
-                {
-                    Url = libData.FilePath;
-                    Title = LinkUtil.GetLastSegmentUrl(libData.FilePath);
-                    if (userSettings.Settings.ExtractStreamMetaData)
-                    {
-                        //_ = SetYtMetadata(libData.FilePath);
-                    }
-                }
-                else if (libData.LivelyInfo.Type == WallpaperType.url
-                    || libData.LivelyInfo.Type == WallpaperType.web
-                    || libData.LivelyInfo.Type == WallpaperType.webaudio)
-                {
-                    if (libData.LivelyInfo.Type == WallpaperType.url)
-                        Url = libData.FilePath;
-
-                    Title = LinkUtil.GetLastSegmentUrl(libData.FilePath);
-                }
-                else
-                {
-                    try
-                    {
-                        Title = Path.GetFileNameWithoutExtension(libData.FilePath);
-                    }
-                    catch (ArgumentException)
-                    {
-                        Title = libData.FilePath;
-                    }
-
-                    if (String.IsNullOrWhiteSpace(Title))
-                    {
-                        Title = libData.FilePath;
-                    }
-                }
-
-                if (libData.DataType == LibraryItemType.cmdImport ||
-                    libData.DataType == LibraryItemType.multiImport)
-                {
-                    //skip black-transition/intro clip of video clips if any..
-                    wallpaper.SetPlaybackPos(35, PlaybackPosType.absolutePercent);
-                }
-            }
+            this.userSettings = userSettings;
+            this.wallpaperLibraryFactory = wallpaperLibraryFactory;
         }
 
-        /*
-        private async Task SetYtMetadata(string url)
-        {
-            try
-            {
-                //Library also checks, this is not required..
-                if (!StreamHelper.IsYoutubeUrl(url))
-                    return;
+        [ObservableProperty]
+        private string title;
 
-                IsUserEditable = false;
-                var youtube = new YoutubeClient();
-                var video = await youtube.Videos.GetAsync(url);
-                //set data
-                Title = video.Title;
-                Desc = video.Description;
-                Author = video.Author.Title;
-            }
-            catch (Exception e)
-            {
-                Logger.Error(e.ToString());
-            }
-            finally
-            {
-                IsUserEditable = true;
-            }
-        }
-        */
+        [ObservableProperty]
+        private string description;
 
-        #region data
+        [ObservableProperty]
+        private string author;
 
-        private string _title;
-        public string Title
-        {
-            get => _title;
-            set
-            {
-                value = (value?.Length > 100 ? value.Substring(0, 100) : value);
-                libData.Title = value;
-                libData.LivelyInfo.Title = value;
-                SetProperty(ref _title, value);
-                DetailsUpdated?.Invoke(this, new WallpaperUpdateArgs() { Category = UpdateWallpaperType.changed, Info = libData.LivelyInfo, InfoPath = libData.LivelyInfoFolderPath });
-            }
-        }
-
-        private string _desc;
-        public string Desc
-        {
-            get => _desc;
-            set
-            {
-                value = (value?.Length > 5000 ? value.Substring(0, 5000) : value);
-                libData.Desc = value;
-                libData.LivelyInfo.Desc = value;
-                SetProperty(ref _desc, value);
-                DetailsUpdated?.Invoke(this, new WallpaperUpdateArgs() { Category = UpdateWallpaperType.changed, Info = libData.LivelyInfo, InfoPath = libData.LivelyInfoFolderPath });
-            }
-        }
-
-        private string _author;
-        public string Author
-        {
-            get => _author;
-            set
-            {
-                value = (value?.Length > 100 ? value.Substring(0, 100) : value);
-                libData.Author = value;
-                libData.LivelyInfo.Author = value;
-                SetProperty(ref _author, value);
-                DetailsUpdated?.Invoke(this, new WallpaperUpdateArgs() { Category = UpdateWallpaperType.changed, Info = libData.LivelyInfo, InfoPath = libData.LivelyInfoFolderPath });
-            }
-        }
-
-        private string _url;
-        public string Url
-        {
-            get => _url;
-            set
-            {
-                libData.LivelyInfo.Contact = value;
-                SetProperty(ref _url, value);
-                DetailsUpdated?.Invoke(this, new WallpaperUpdateArgs() { Category = UpdateWallpaperType.changed, Info = libData.LivelyInfo, InfoPath = libData.LivelyInfoFolderPath });
-            }
-        }
-
-        #endregion data
-
-        #region ui 
+        [ObservableProperty]
+        private string url;
 
         [ObservableProperty]
         private bool isUserEditable = true;
 
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+        private bool isProcessing = false;
+
+        [ObservableProperty]
         private double currentProgress;
 
-        public void OnWindowClosed(object sender, EventArgs e)
+        public IWallpaper Wallpaper { get; set; }
+
+        public Size CaptureArea { get; set; }
+
+        public Rect CapturePosition { get; set; }
+
+        [RelayCommand]
+        private async Task Start()
         {
-            CleanUp();
-        }
-
-        #endregion ui
-
-        #region interface methods
-
-        private async void WInstance_WallpaperAttached(object sender, EventArgs e)
-        {
-            if (libData.DataType == LibraryItemType.cmdImport ||
-                libData.DataType == LibraryItemType.multiImport)
+            try
             {
-                //warm up time/seek delay artifact fix for mpv..
-                await Task.Delay(1000);
-                Winstance.StartCapture(libData.LivelyInfoFolderPath);
-            }
-            else
-            {
-                Winstance.StartThumbnailCaptureLoop(libData.LivelyInfoFolderPath);
-            }
-        }
+                IsProcessing = true;
+                var fileType = Wallpaper.Model.LivelyInfo.Type;
+                var destPath = Wallpaper.Model.LivelyInfoFolderPath;
+                var thumbnailPath = Path.Combine(destPath, Path.GetRandomFileName() + ".jpg");
+                var previewPath = Path.Combine(destPath, Path.GetRandomFileName() + ".gif");
+                // Finalise the changes to disk.
+                UpdateWallpaperFiles(Wallpaper.Model,
+                    Title,
+                    Author,
+                    Description,
+                    Url,
+                    thumbnailPath,
+                    previewPath);
 
-        private bool _canCancelOperation = true;
-        private void WInstance_CaptureProgress(object sender, double value)
-        {
-            if (_canCancelOperation)
-            {
-                _canCancelOperation = false;
-                CaptureCommand.NotifyCanExecuteChanged();
-                CancelCommand.NotifyCanExecuteChanged();
-            }
-
-            CurrentProgress = value;
-            if (CurrentProgress == 100)
-            {
-                Winstance.Exit();
-            }
-        }
-
-        private RelayCommand _captureCommand;
-        public RelayCommand CaptureCommand => _captureCommand ??= new RelayCommand(() => UserActionStart(), () => _canCancelOperation);
-
-        private void UserActionStart()
-        {
-            if (libData.DataType == LibraryItemType.edit)
-            {
-                try
+                // Start capturing wallpaper preview in-memory.
+                var createPreviewTask = CreateThumbnailAndPreview(CaptureArea,
+                    CapturePosition,
+                    thumbnailPath,
+                    previewPath,
+                    previewAnimationDelay,
+                    previewSaveAnimationDelay,
+                    previewTotalFrames,
+                    userSettings.Settings.GifCapture && Wallpaper.Category != WallpaperType.picture,
+                    new Progress<int>(percent => CurrentProgress = percent - 1));
+                if (fileType.IsMediaWallpaper() || fileType.IsOnlineWallpaper())
                 {
-                    //deleting existing file(s) if any..
-                    File.Delete(thumbnailOriginalPath);
-                    File.Delete(libData.PreviewClipPath);
-                }
-                catch { }
-
-                //resetting..
-                libData.ImagePath = null;
-                libData.ThumbnailPath = null;
-                libData.LivelyInfo.Thumbnail = null;
-                libData.PreviewClipPath = null;
-                libData.LivelyInfo.Preview = null;
-                DetailsUpdated?.Invoke(this, new WallpaperUpdateArgs() { Category = UpdateWallpaperType.changed, Info = libData.LivelyInfo, InfoPath = libData.LivelyInfoFolderPath });
-            }
-            Winstance.StartCapture(libData.LivelyInfoFolderPath);
-        }
-
-        private RelayCommand _cancelCommand;
-        public RelayCommand CancelCommand => _cancelCommand ??= new RelayCommand(() => Winstance.Exit(), () => _canCancelOperation);
-
-        private void WInstance_ThumbnailUpdated(object sender, string path)
-        {
-            libData.ImagePath = null;
-            libData.ImagePath = path;
-            libData.LivelyInfo.Thumbnail = libData.LivelyInfo.IsAbsolutePath ? path : Path.GetFileName(path);
-            libData.ThumbnailPath = path;
-            DetailsUpdated?.Invoke(this, new WallpaperUpdateArgs() { Category = UpdateWallpaperType.changed, Info = libData.LivelyInfo, InfoPath = libData.LivelyInfoFolderPath });
-        }
-
-        private void WInstance_PreviewUpdated(object sender, string path)
-        {
-            libData.ImagePath = null;
-            libData.ImagePath = path;
-            libData.LivelyInfo.Preview = libData.LivelyInfo.IsAbsolutePath ? path : Path.GetFileName(path);
-            libData.PreviewClipPath = path;
-            DetailsUpdated?.Invoke(this, new WallpaperUpdateArgs() { Category = UpdateWallpaperType.changed, Info = libData.LivelyInfo, InfoPath = libData.LivelyInfoFolderPath });
-        }
-
-        private void CleanUp()
-        {
-            if (CurrentProgress == 100)
-            {
-                //user pressed ok..everything went well :)
-                try
-                {
-                    JsonStorage<LivelyInfoModel>.StoreData(
-                        Path.Combine(libData.LivelyInfoFolderPath, "LivelyInfo.json"), libData.LivelyInfo);
-                }
-                catch (Exception e)
-                {
-                    Logger.Error(e.ToString());
-                }
-
-                //change from pos 0..
-                libData.DataType = LibraryItemType.ready;
-                //libraryVm.SortLibraryItem((LibraryModel)libData);
-                DetailsUpdated?.Invoke(this, new WallpaperUpdateArgs() { Category = UpdateWallpaperType.done, Info = libData.LivelyInfo, InfoPath = libData.LivelyInfoFolderPath });
-            }
-            else
-            {
-                //user close or 'x' btn press..
-                if (libData.DataType == LibraryItemType.edit)
-                {
-                    //Not required to restore data from memory since "done" just reloads from disk anyway ignoring "Info"..
-                    DetailsUpdated?.Invoke(this, new WallpaperUpdateArgs() { Category = UpdateWallpaperType.done, Info = libData.LivelyInfo, InfoPath = libData.LivelyInfoFolderPath });
+                    // Copy files to destination, ie Absolute path -> Relative path.
+                    // If editing existing wallpaper, convertion also takes place.
+                    var absoluteToRelativePathConvertionTask = 
+                        wallpaperLibraryFactory.ConvertAbsoluteToRelativePathAsync(Wallpaper.Model.LivelyInfo, destPath);
+                    await Task.WhenAll(createPreviewTask, absoluteToRelativePathConvertionTask);
                 }
                 else
                 {
-                    DetailsUpdated?.Invoke(this, new WallpaperUpdateArgs() { Category = UpdateWallpaperType.remove, Info = libData.LivelyInfo, InfoPath = libData.LivelyInfoFolderPath });
+                    // We are not converting here because cannot verify if the html or exe file is in its own project folder or not.
+                    await createPreviewTask;
                 }
             }
-
-            Winstance.CaptureProgress -= WInstance_CaptureProgress;
-            Winstance.PreviewUpdated -= WInstance_PreviewUpdated;
-            Winstance.ThumbnailUpdated -= WInstance_ThumbnailUpdated;
-            Winstance.WallpaperAttached -= WInstance_WallpaperAttached;
+            finally 
+            {
+                IsProcessing = false;
+            }
+            OnWindowCloseRequested?.Invoke(this, true);
         }
 
-        #endregion interface methods
+        [RelayCommand(CanExecute = nameof(CanCancel))]
+        private void Cancel()
+        {
+            OnWindowCloseRequested?.Invoke(this, false);
+        }
+
+        private bool CanCancel() => !IsProcessing;
+
+        public void LoadModel(LivelyInfoModel model)
+        {
+            Title = model.Title;
+            Author = model.Author;
+            Description = model.Desc;
+            Url = model.Contact;
+        }
+
+        private static async Task CreateThumbnailAndPreview(Size area,
+            Rect pos,
+            string thumbnailFilePath,
+            string previewFilePath,
+            int previewAnimationDelay,
+            int previewSaveAnimationDelay,
+            int previewTotalFrames,
+            bool isCreatePreview,
+            IProgress<int>? progress)
+        {
+            // Thumbnail art
+            CaptureScreen.CopyScreen(
+               thumbnailFilePath,
+               (int)pos.Left,
+               (int)pos.Top,
+               (int)area.Width,
+               (int)area.Height);
+
+            // Animated preview art
+            if (isCreatePreview)
+            {
+                // Window is locked in position during capture, capture position does not need to be updated.
+                await CaptureScreen.CaptureGif(
+                       previewFilePath,
+                       (int)pos.Left,
+                       (int)pos.Top,
+                       (int)pos.Width,
+                       (int)pos.Height,
+                       previewAnimationDelay,
+                       previewSaveAnimationDelay,
+                       previewTotalFrames,
+                       progress);
+            }
+        }
+
+        private static void UpdateWallpaperFiles(
+            LibraryModel model,
+            string title,
+            string author,
+            string description,
+            string url,
+            string thumbnailPath,
+            string previewPath)
+        {
+            try
+            {
+                // Delete previous thumbnail/preview if any.
+                if (File.Exists(model.ThumbnailPath))
+                    File.Delete(model.ThumbnailPath);
+                if (File.Exists(model.PreviewClipPath))
+                    File.Delete(model.PreviewClipPath);
+            }
+            catch { /* Nothing to do */ }
+
+            // Update metadata.
+            model.LivelyInfo.Title = title;
+            model.LivelyInfo.Author = author;
+            model.LivelyInfo.Desc = description;
+            model.LivelyInfo.Contact = url;
+            model.LivelyInfo.Thumbnail = model.LivelyInfo.IsAbsolutePath ? thumbnailPath : Path.GetFileName(thumbnailPath);
+            model.LivelyInfo.Preview = model.LivelyInfo.IsAbsolutePath ? previewPath : Path.GetFileName(previewPath);
+            // Update metadata file.
+            JsonStorage<LivelyInfoModel>.StoreData(Path.Combine(model.LivelyInfoFolderPath, "LivelyInfo.json"), model.LivelyInfo);
+        }
     }
 }

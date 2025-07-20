@@ -1,18 +1,16 @@
 ﻿using Lively.Common;
-using Lively.Common.API;
+using Lively.Common.Extensions;
 using Lively.Common.Helpers;
-using Lively.Common.Helpers.Pinvoke;
 using Lively.Common.Helpers.Shell;
 using Lively.Models;
+using Lively.Models.Enums;
+using Lively.Models.Message;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Lively.Common.Extensions;
 
 namespace Lively.Core.Wallpapers
 {
@@ -21,9 +19,14 @@ namespace Lively.Core.Wallpapers
     //https://wiki.videolan.org/documentation:modules/rc/
     public class VideoVlcPlayer : IWallpaper
     {
+        private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
         private readonly CancellationTokenSource ctsProcessWait = new CancellationTokenSource();
         private Task<IntPtr> processWaitTask;
+        private static int globalCount;
+        private readonly int uniqueId;
         private readonly int timeOut;
+
+        public event EventHandler Exited;
 
         public bool IsLoaded => Handle != IntPtr.Zero;
 
@@ -54,7 +57,11 @@ namespace Lively.Core.Wallpapers
                 _ => "--autoscale",
             };
 
-            StringBuilder cmdArgs = new StringBuilder();
+
+            // Ref: https://wiki.videolan.org/VLC_command-line_help/
+            var cmdArgs = new StringBuilder();
+            //repeat file
+            cmdArgs.Append("--loop ");
             //--no-video-title.
             cmdArgs.Append("--no-osd ");
             //video stretch algorithm.
@@ -76,9 +83,9 @@ namespace Lively.Core.Wallpapers
 
             ProcessStartInfo start = new ProcessStartInfo
             {
-                FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "vlc", "vlc.exe"),
+                FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Constants.PlayerPartialPaths.VlcPath),
                 UseShellExecute = false,
-                WorkingDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "vlc"),
+                WorkingDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Constants.PlayerPartialPaths.VlcDir),
                 Arguments = cmdArgs.ToString(),
             };
 
@@ -92,6 +99,9 @@ namespace Lively.Core.Wallpapers
             this.Model = model;
             this.Screen = display;
             this.timeOut = 20000;
+
+            //for logging purpose
+            uniqueId = globalCount++;
         }
 
         public async void Close()
@@ -169,14 +179,10 @@ namespace Lively.Core.Wallpapers
 
         private void Proc_Exited(object sender, EventArgs e)
         {
+            Logger.Info($"Vlc{uniqueId}: Process exited with exit code: {Proc?.ExitCode}");
             Proc?.Dispose();
-            DesktopUtil.RefreshDesktop();
             IsExited = true;
-        }
-
-        public void Stop()
-        {
-            //todo
+            Exited?.Invoke(this, EventArgs.Empty);
         }
 
         public void Terminate()
@@ -186,7 +192,6 @@ namespace Lively.Core.Wallpapers
                 Proc.Kill();
             }
             catch { }
-            DesktopUtil.RefreshDesktop();
         }
 
         public Task ScreenCapture(string filePath)

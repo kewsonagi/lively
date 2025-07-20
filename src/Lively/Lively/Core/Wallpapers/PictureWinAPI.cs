@@ -1,13 +1,10 @@
-﻿using Lively.Common;
-using Lively.Common.API;
-using Lively.Common.Com;
-using Lively.Core;
+﻿using Lively.Common.Com;
 using Lively.Models;
+using Lively.Models.Enums;
+using Lively.Models.Message;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Lively.Core.Wallpapers
@@ -54,6 +51,8 @@ namespace Lively.Core.Wallpapers
 
         private readonly WallpaperArrangement arrangement;
         private readonly string filePath;
+
+        public event EventHandler Exited;
 
         public PictureWinApi(string filePath,
             LibraryModel model,
@@ -138,21 +137,16 @@ namespace Lively.Core.Wallpapers
             //Nothing to setup..
         }
 
-        public void Stop()
-        {
-            //nothing
-        }
-        
         public void Close()
         {
             RestoreWallpaper();
             IsExited = true;
+            Exited?.Invoke(this, EventArgs.Empty);
         }
 
         public void Terminate()
         {
-            RestoreWallpaper();
-            IsExited = true;
+            Close();
         }
 
         //restore original wallpaper (if possible.)

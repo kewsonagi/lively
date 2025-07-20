@@ -1,6 +1,6 @@
-﻿using Lively.Common;
-using Lively.Common.API;
-using Lively.Models;
+﻿using Lively.Models;
+using Lively.Models.Enums;
+using Lively.Models.Message;
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
@@ -56,10 +56,6 @@ namespace Lively.Core
         /// </summary>
         void Play();
         /// <summary>
-        /// Stop wallpaper playback.
-        /// </summary>
-        void Stop();
-        /// <summary>
         /// Close wallpaper gracefully.
         /// </summary>
         void Close();
@@ -106,6 +102,8 @@ namespace Lively.Core
         /// <param name="filePath"></param>
         /// <returns></returns>
         Task ScreenCapture(string filePath);
+
+        public event EventHandler Exited;
     }
 
     public enum PlaybackPosType

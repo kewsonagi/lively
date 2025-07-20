@@ -1,19 +1,16 @@
-﻿using Microsoft.Win32;
+﻿using Lively.Common.Helpers;
+using Lively.Common.Helpers.Pinvoke;
+using Lively.Common.Services;
+using Lively.Core.Display;
+using Lively.Helpers.Hardware;
+using Lively.Models;
+using Lively.Models.Enums;
+using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
-using System.Text;
-using System.Windows;
-//using System.Windows.Forms;
-using System.Windows.Threading;
 using System.Linq;
-using Lively.Common;
-using Lively.Services;
-using Lively.Common.Helpers.Pinvoke;
-using Lively.Helpers.Hardware;
-using Lively.Core.Display;
-using Lively.Models;
+using System.Windows.Threading;
 
 namespace Lively.Core.Suspend
 {
@@ -23,27 +20,6 @@ namespace Lively.Core.Suspend
     public class Playback : IPlayback
     {
         private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
-        private readonly string[] classWhiteList = new string[]
-        {
-            //startmeu, taskview (win10), action center etc
-            "Windows.UI.Core.CoreWindow",
-            //alt+tab screen (win10)
-            "MultitaskingViewFrame",
-            //taskview (win11)
-            "XamlExplorerHostIslandWindow",
-            //widget window (win11)
-            "WindowsDashboard",
-            //taskbar(s)
-            "Shell_TrayWnd",
-            "Shell_SecondaryTrayWnd",
-            //systray notifyicon expanded popup
-            "NotifyIconOverflowWindow",
-            //rainmeter widgets
-            "RainmeterMeterWindow",
-            //Coodesker, ref: https://github.com/rocksdanister/lively/issues/760
-            "_cls_desk_"
-        };
-        private IntPtr workerWOrig, progman;
         private PlaybackState _wallpaperPlayback;
         public PlaybackState WallpaperPlayback
         {
@@ -54,108 +30,77 @@ namespace Lively.Core.Suspend
                 PlaybackStateChanged?.Invoke(this, _wallpaperPlayback);
             }
         }
+
         public event EventHandler<PlaybackState> PlaybackStateChanged;
 
-        private readonly DispatcherTimer dispatcherTimer = new DispatcherTimer();
-        private bool _isLockScreen, _isRemoteSession;
+        private readonly DispatcherTimer dispatcherTimer;
+        private bool isLockScreen, isRemoteSession;
         private bool disposedValue;
-        private int livelyPid = 0;
 
         private readonly IUserSettingsService userSettings;
         private readonly IDesktopCore desktopCore;
         private readonly IDisplayManager displayManager;
         private readonly IScreensaverService screenSaver;
 
-        public Playback(IUserSettingsService userSettings, IDesktopCore desktopCore,  IDisplayManager displayManager,IScreensaverService screenSaver)
+        public Playback(IUserSettingsService userSettings,
+            IDesktopCore desktopCore,
+            IDisplayManager displayManager,
+            IScreensaverService screenSaver)
         {
             this.userSettings = userSettings;
             this.desktopCore = desktopCore;
             this.displayManager = displayManager;
             this.screenSaver = screenSaver;
 
-            Initialize();
-            UpdateDesktopHandles();
-            desktopCore.WallpaperReset += (s, e) => UpdateDesktopHandles();
-        }
-
-        private void UpdateDesktopHandles()
-        {
-            //resetting
-            workerWOrig = IntPtr.Zero;
-            progman = IntPtr.Zero;
-
-            progman = NativeMethods.FindWindow("Progman", null);
-            var folderView = NativeMethods.FindWindowEx(progman, IntPtr.Zero, "SHELLDLL_DefView", null);
-            if (folderView == IntPtr.Zero)
-            {
-                //If the desktop isn't under Progman, cycle through the WorkerW handles and find the correct one
-                do
-                {
-                    workerWOrig = NativeMethods.FindWindowEx(NativeMethods.GetDesktopWindow(), workerWOrig, "WorkerW", null);
-                    folderView = NativeMethods.FindWindowEx(workerWOrig, IntPtr.Zero, "SHELLDLL_DefView", null);
-                } while (folderView == IntPtr.Zero && workerWOrig != IntPtr.Zero);
-            }
-            Logger.Info("Desktop handles updated.");
-        }
-
-        private void Initialize()
-        {
-            InitializeTimer();
-            WallpaperPlayback = PlaybackState.play;
-
-            try
-            {
-                using Process process = Process.GetCurrentProcess();
-                livelyPid = process.Id;
-            }
-            catch (Exception e)
-            {
-                Logger.Error("Failed to retrieve Lively Pid:" + e.Message);
-            }
-
-            /*
-            // Check if already in remote/lockscreen session.
-            _isRemoteSession = System.Windows.Forms.SystemInformation.TerminalServerSession;
-            if (_isRemoteSession)
-            {
-                Logger.Info("Remote Desktop Session already started!");
-            }
-            */
-            _isLockScreen = IsSystemLocked();
-            if (_isLockScreen)
-            {
-                Logger.Info("Lockscreen Session already started!");
-            }
-            SystemEvents.SessionSwitch += SystemEvents_SessionSwitch;
-        }
-
-        private void InitializeTimer()
-        {
-            dispatcherTimer.Tick += new EventHandler(ProcessMonitor);
+            // We are using timer instead of WinEventHook:
+            // EVENT_OBJECT_LOCATIONCHANGE has too much noise even with filtering.
+            // Not reliable in some systems.
+            dispatcherTimer = new();
+            dispatcherTimer.Tick += new EventHandler(Timer_Tick);
             dispatcherTimer.Interval = new TimeSpan(0, 0, 0, 0, userSettings.Settings.ProcessTimerInterval);
+            WallpaperPlayback = PlaybackState.play;
+            isLockScreen = IsSystemLocked();
+            if (isLockScreen)
+                Logger.Info("Lockscreen Session already started!");
+
+            SystemEvents.SessionSwitch += SystemEvents_SessionSwitch;
         }
 
         private void SystemEvents_SessionSwitch(object sender, SessionSwitchEventArgs e)
         {
-            if (e.Reason == SessionSwitchReason.RemoteConnect)
+            switch (e.Reason)
             {
-                _isRemoteSession = true;
-                Logger.Info("Remote Desktop Session started!");
-            }
-            else if (e.Reason == SessionSwitchReason.RemoteDisconnect)
-            {
-                _isRemoteSession = false;
-                Logger.Info("Remote Desktop Session ended!");
-            }
-            else if (e.Reason == SessionSwitchReason.SessionLock)
-            {
-                _isLockScreen = true;
-                Logger.Info("Lockscreen Session started!");
-            }
-            else if (e.Reason == SessionSwitchReason.SessionUnlock)
-            {
-                _isLockScreen = false;
-                Logger.Info("Lockscreen Session ended!");
+                case SessionSwitchReason.SessionLock:
+                    {
+                        isLockScreen = true;
+                        Logger.Info("Lockscreen Session started!");
+                    }
+                    break;
+                case SessionSwitchReason.SessionUnlock:
+                    {
+                        isLockScreen = false;
+                        Logger.Info("Lockscreen Session ended!");
+                    }
+                    break;
+                case SessionSwitchReason.RemoteConnect:
+                    {
+                        isRemoteSession = true;
+                        Logger.Info("Remote Desktop Session started!");
+                    }
+                    break;
+                case SessionSwitchReason.RemoteDisconnect:
+                    {
+                        isRemoteSession = false;
+                        Logger.Info("Remote Desktop Session ended!");
+                    }
+                    break;
+                case SessionSwitchReason.SessionLogon:
+                case SessionSwitchReason.SessionLogoff:
+                case SessionSwitchReason.SessionRemoteControl:
+                case SessionSwitchReason.ConsoleConnect:
+                case SessionSwitchReason.ConsoleDisconnect:
+                default:
+                    break;
             }
         }
 
@@ -169,25 +114,9 @@ namespace Lively.Core.Suspend
             dispatcherTimer.Stop();
         }
 
-        private void ProcessMonitor(object sender, EventArgs e)
+        private void Timer_Tick(object sender, EventArgs e)
         {
-            if (screenSaver.IsRunning)
-            {
-                PlayWallpapers();
-                SetWallpaperVolume(userSettings.Settings.AudioVolumeGlobal);
-            }
-            else if (WallpaperPlayback == PlaybackState.paused || _isLockScreen ||
-                (_isRemoteSession && userSettings.Settings.RemoteDesktopPause == AppRulesEnum.pause))
-            {
-                PauseWallpapers();
-            }
-            else if (userSettings.Settings.BatteryPause == AppRulesEnum.pause &&
-                PowerUtil.GetACPowerStatus() == PowerUtil.ACLineStatus.Offline)
-            {
-                PauseWallpapers();
-            }
-            else if (userSettings.Settings.PowerSaveModePause == AppRulesEnum.pause &&
-                PowerUtil.GetBatterySaverStatus() == PowerUtil.SystemStatusFlag.On)
+            if (IsPauseDueToSystemState())
             {
                 PauseWallpapers();
             }
@@ -196,19 +125,156 @@ namespace Lively.Core.Suspend
                 switch (userSettings.Settings.ProcessMonitorAlgorithm)
                 {
                     case ProcessMonitorAlgorithm.foreground:
-                        ForegroundAppMonitor();
+                        EvaluatePlaybackByForegroundWindow();
                         break;
                     case ProcessMonitorAlgorithm.all:
-                        ForegroundAppMonitor(); //fallback
+                        EvaluatePlaybackByVisibleWindow((display, windows) => WindowUtil.IsDisplayCoveredByAnyWindow(windows, display.WorkingArea));
+                        break;
+                    case ProcessMonitorAlgorithm.grid:
+                        EvaluatePlaybackByVisibleWindow((display, windows) => WindowUtil.IsDisplayCoveredByWindowGrid(windows,
+                            display.WorkingArea,
+                            userSettings.Settings.ProcessMonitorGridTileSize,
+                            userSettings.Settings.ProcessMonitorGridTileCoverageThreshold));
                         break;
                     case ProcessMonitorAlgorithm.gamemode:
-                        GameModeAppMonitor();
+                        EvaluatePlaybackByGameMode();
                         break;
                 }
             }
         }
 
-        private void GameModeAppMonitor()
+        private void EvaluatePlaybackByForegroundWindow()
+        {
+            var isCovered = false;
+            var hwnd = NativeMethods.GetForegroundWindow();
+            var isValidWindow = WindowUtil.IsVisibleTopLevelWindows(hwnd);
+            var foregroundDisplay = displayManager.PrimaryDisplayMonitor;
+            var isFullScreenPause = userSettings.Settings.AppFullscreenPause == AppRules.pause;
+            var isFocusedAppPause = userSettings.Settings.AppFocusPause == AppRules.pause;
+
+            bool isDesktop;
+            if (isValidWindow)
+            {
+                isDesktop = WindowUtil.IsExcludedDesktopWindowClass(hwnd);
+                foregroundDisplay = displayManager.GetDisplayMonitorFromHWnd(hwnd);
+                isCovered = WindowUtil.IsDisplayCoveredByWindow(hwnd, foregroundDisplay.WorkingArea);
+            }
+            else
+            {
+                // We assume its desktop, not enough information otherwise since only foreground window is checked.
+                isDesktop = hwnd == NativeMethods.GetDesktopWindow() || hwnd == NativeMethods.GetShellWindow() || WindowUtil.IsExcludedDesktopWindowClass(hwnd);
+            }
+
+            if (isDesktop || !isValidWindow || IsExcludedApp(hwnd))
+            {
+                // Fallback to playback if desktop, uncertain or user exclusion.
+                PlayWallpapers();
+                SetWallpaperVolume(userSettings.Settings.AudioVolumeGlobal);
+            }
+            else
+            {
+                var shouldPause = isFullScreenPause && (isFocusedAppPause || isCovered);
+                switch (userSettings.Settings.DisplayPauseSettings)
+                {
+                    case DisplayPause.perdisplay:
+                        {
+                            foreach (var display in displayManager.DisplayMonitors)
+                            {
+                                if (foregroundDisplay.Equals(display))
+                                {
+                                    if (shouldPause)
+                                        PauseWallpaper(foregroundDisplay);
+                                    else
+                                        PlayWallpaper(foregroundDisplay);
+                                }
+                                else
+                                { 
+                                    PlayWallpaper(display); 
+                                }
+                            }
+                        }
+                        break;
+                    case DisplayPause.all:
+                        {
+                            if (shouldPause)
+                                PauseWallpapers();
+                            else
+                                PlayWallpapers();
+                        }
+                        break;
+                }
+
+                SetWallpaperVolume(userSettings.Settings.AudioOnlyOnDesktop ? 0 : userSettings.Settings.AudioVolumeGlobal);
+            }
+        }
+
+        private void EvaluatePlaybackByVisibleWindow(Func<DisplayMonitor, List<IntPtr>, bool> coverageCheck)
+        {
+            var windows = WindowUtil.GetVisibleTopLevelWindows();
+            if (windows.Exists(IsExcludedApp))
+            {
+                PlayWallpapers();
+                SetWallpaperVolume(userSettings.Settings.AudioVolumeGlobal);
+                return;
+            }
+
+            var monitorWindowsMap = windows
+                .GroupBy(hwnd => displayManager.GetDisplayMonitorFromHWnd(hwnd))
+                .ToDictionary(g => g.Key, g => g.ToList());
+            var effectiveDisplayPauseSetting = userSettings.Settings.WallpaperArrangement switch
+            {
+                WallpaperArrangement.per => userSettings.Settings.DisplayPauseSettings,
+                WallpaperArrangement.span => DisplayPause.all,
+                WallpaperArrangement.duplicate => DisplayPause.all,
+                _ => userSettings.Settings.DisplayPauseSettings,
+            };
+
+            switch (effectiveDisplayPauseSetting)
+            {
+                case DisplayPause.perdisplay:
+                    {
+                        foreach (var display in displayManager.DisplayMonitors)
+                        {
+                            var windowsOnDisplay = monitorWindowsMap.GetValueOrDefault(display) ?? [];
+                            var shouldPause = ShouldPauseWallpaper(display, windowsOnDisplay, coverageCheck);
+
+                            if (shouldPause)
+                                PauseWallpaper(display);
+                            else
+                                PlayWallpaper(display);
+                        }
+                    }
+                    break;
+                case DisplayPause.all:
+                    {
+                        var shouldPauseAll = displayManager.DisplayMonitors.Any(display =>
+                        {
+                            var windowsOnDisplay = monitorWindowsMap.GetValueOrDefault(display) ?? [];
+                            return ShouldPauseWallpaper(display, windowsOnDisplay, coverageCheck);
+                        });
+
+                        if (shouldPauseAll)
+                            PauseWallpapers();
+                        else
+                            PlayWallpapers();
+                    }
+                    break;
+            }
+
+            // For now unmute audio per display, in the future let user select the audio output display.
+            foreach (var display in displayManager.DisplayMonitors)
+            {
+                var windowsOnDisplay = monitorWindowsMap.GetValueOrDefault(display) ?? [];
+                var isDesktop = windowsOnDisplay.Count == 0;
+
+                if (isDesktop)
+                    SetWallpaperVolume(userSettings.Settings.AudioVolumeGlobal, display);
+                else
+                    SetWallpaperVolume(userSettings.Settings.AudioOnlyOnDesktop ? 0 : userSettings.Settings.AudioVolumeGlobal, display);
+            }
+        }
+
+        private void EvaluatePlaybackByGameMode()
         {
             if (NativeMethods.SHQueryUserNotificationState(out NativeMethods.QUERY_USER_NOTIFICATION_STATE state) == 0)
             {
@@ -229,235 +295,22 @@ namespace Lively.Core.Suspend
             SetWallpaperVolume(userSettings.Settings.AudioVolumeGlobal);
         }
 
-        private void UIAutomationMonitor()
+        private bool ShouldPauseWallpaper(DisplayMonitor display, List<IntPtr> windowsOnDisplay, Func<DisplayMonitor, List<IntPtr>, bool> coverageCheck)
         {
-            throw new NotImplementedException();
-            /*
-            // track windows open
-            Automation.AddAutomationEventHandler(WindowPattern.WindowOpenedEvent, AutomationElement.RootElement, TreeScope.Subtree, (s, e) =>
-            {
-                var element = (AutomationElement)s;
-                if (element.Current.ProcessId != Process.GetCurrentProcess().Id)
-                {
-                    Debug.WriteLine("Added window '" + element.Current.Name + "'");
-                    // track window close
-                    Automation.AddAutomationEventHandler(WindowPattern.WindowClosedEvent, element, TreeScope.Element, (s2, e2) =>
-                    {
-                        Debug.WriteLine("Removed windows '" + element + "'");
-                    });
-                }
-            });
-            */
-        }
+            var isFullScreenPause = userSettings.Settings.AppFullscreenPause == AppRules.pause;
+            var isFocusedAppPause = userSettings.Settings.AppFocusPause == AppRules.pause;
+            var isDesktop = windowsOnDisplay.Count == 0;
+            var isCovered = coverageCheck(display, windowsOnDisplay);
 
-        private void ForegroundAppMonitor()
-        {
-            var isDesktop = false;
-            var fHandle = NativeMethods.GetForegroundWindow();
-
-            if (IsWhitelistedClass(fHandle))
-            {
-                PlayWallpapers();
-                SetWallpaperVolume(userSettings.Settings.AudioVolumeGlobal);
-                return;
-            }
-
-            try
-            {
-                NativeMethods.GetWindowThreadProcessId(fHandle, out int processID);
-                using Process fProcess = Process.GetProcessById(processID);
-
-                //process with no name, possibly overlay or some other service pgm; resume playback.
-                if (string.IsNullOrEmpty(fProcess.ProcessName) || fHandle.Equals(IntPtr.Zero))
-                {
-                    PlayWallpapers();
-                    return;
-                }
-
-                //is it Lively or its plugins..
-                if (fProcess.Id == livelyPid || IsLivelyPlugin(fProcess.Id))
-                {
-                    PlayWallpapers();
-                    SetWallpaperVolume(userSettings.Settings.AudioVolumeGlobal);
-                    return;
-                }
-
-                //looping through custom rules for user defined apps..
-                for (int i = 0; i < userSettings.AppRules.Count; i++)
-                {
-                    var item = userSettings.AppRules[i];
-                    if (string.Equals(item.AppName, fProcess.ProcessName, StringComparison.Ordinal))
-                    {
-                        switch (item.Rule)
-                        {
-                            case AppRulesEnum.pause:
-                                PauseWallpapers();
-                                break;
-                            case AppRulesEnum.ignore:
-                                PlayWallpapers();
-                                SetWallpaperVolume(userSettings.Settings.AudioOnlyOnDesktop ? 0 : userSettings.Settings.AudioVolumeGlobal);
-                                break;
-                            case AppRulesEnum.kill:
-                                //todo
-                                break;
-                        }
-                        return;
-                    }
-                }
-            }
-            catch
-            {
-                //failed to get process info.. maybe remote process; resume playback.
-                PlayWallpapers();
-                return;
-            }
-
-            try
-            {
-                if (!(fHandle.Equals(NativeMethods.GetDesktopWindow()) || fHandle.Equals(NativeMethods.GetShellWindow())))
-                {
-                    if (!displayManager.IsMultiScreen() ||
-                        userSettings.Settings.DisplayPauseSettings == DisplayPauseEnum.all)
-                    //userSettings.Settings.WallpaperArrangement == WallpaperArrangement.duplicate)
-                    {
-                        if (IntPtr.Equals(fHandle, workerWOrig) || IntPtr.Equals(fHandle, progman))
-                        {
-                            //win10 and win7 desktop foreground while lively is running.
-                            isDesktop = true;
-                            PlayWallpapers();
-                        }
-                        else if (NativeMethods.IsZoomed(fHandle) || IsZoomedCustom(fHandle))
-                        {
-                            //maximised window or window covering whole screen.
-                            if (userSettings.Settings.AppFullscreenPause == AppRulesEnum.ignore)
-                            {
-                                PlayWallpapers();
-                            }
-                            else
-                            {
-                                PauseWallpapers();
-                            }
-                        }
-                        else
-                        {
-                            //window is just in focus, not covering screen.
-                            if (userSettings.Settings.AppFocusPause == AppRulesEnum.pause)
-                            {
-                                PauseWallpapers();
-                            }
-                            else
-                            {
-                                PlayWallpapers();
-                            }
-                        }
-                    }
-                    else
-                    {
-                        //multiscreen wp pause algorithm, for per-monitor pause rule.
-                        DisplayMonitor focusedScreen;
-                        if ((focusedScreen = MapWindowToMonitor(fHandle)) != null)
-                        {
-                            //unpausing the rest of wallpapers.
-                            //this is a limitation of this algorithm since only one window can be foreground!
-                            foreach (var item in displayManager.DisplayMonitors)
-                            {
-                                if (userSettings.Settings.WallpaperArrangement != WallpaperArrangement.span &&
-                                    !focusedScreen.Equals(item))
-                                {
-                                    PlayWallpaper(item);
-                                    //SetWallpaperVoume(0, item);
-                                }
-                            }
-                        }
-                        else
-                        {
-                            //no display connected?
-                            return;
-                        }
-
-                        if (IntPtr.Equals(fHandle, workerWOrig) || IntPtr.Equals(fHandle, progman))
-                        {
-                            //win10 and win7 desktop foreground while lively is running.
-                            isDesktop = true;
-                            PlayWallpaper(focusedScreen);
-                        }
-                        else if (userSettings.Settings.WallpaperArrangement == WallpaperArrangement.span)
-                        {
-                            if (IsZoomedSpan(fHandle))
-                            {
-                                PauseWallpapers();
-                            }
-                            else //window is not greater >90%
-                            {
-                                if (userSettings.Settings.AppFocusPause == AppRulesEnum.pause)
-                                {
-                                    PauseWallpapers();
-                                }
-                                else
-                                {
-                                    PlayWallpapers();
-                                }
-                            }
-                        }
-                        else if (NativeMethods.IsZoomed(fHandle) || IsZoomedCustom(fHandle))
-                        {
-                            //maximised window or window covering whole screen.
-                            if (userSettings.Settings.AppFullscreenPause == AppRulesEnum.ignore)
-                            {
-                                PlayWallpaper(focusedScreen);
-                            }
-                            else
-                            {
-                                PauseWallpaper(focusedScreen);
-                            }
-                        }
-                        else
-                        {
-                            //window is just in focus, not covering screen.
-                            if (userSettings.Settings.AppFocusPause == AppRulesEnum.pause)
-                            {
-                                PauseWallpaper(focusedScreen);
-                            }
-                            else
-                            {
-                                PlayWallpaper(focusedScreen);
-                            }
-                        }
-                    }
-
-                    if (isDesktop)
-                    {
-                        SetWallpaperVolume(userSettings.Settings.AudioVolumeGlobal);
-                    }
-                    else
-                    {
-                        SetWallpaperVolume(userSettings.Settings.AudioOnlyOnDesktop ? 0 : userSettings.Settings.AudioVolumeGlobal);
-                    }
-                }
-            }
-            catch { }
-        }
-
-        private string GetClassName(IntPtr hwnd)
-        {
-            const int maxChars = 256;
-            StringBuilder className = new StringBuilder(maxChars);
-            return NativeMethods.GetClassName((int)hwnd, className, maxChars) > 0 ? className.ToString() : string.Empty;
-        }
-
-        private bool IsWhitelistedClass(IntPtr hwnd)
-        {
-            const int maxChars = 256;
-            StringBuilder className = new StringBuilder(maxChars);
-            return NativeMethods.GetClassName((int)hwnd, className, maxChars) > 0 && classWhiteList.Any(x => x.Equals(className.ToString(), StringComparison.Ordinal));
+            // IsFullScreenPause = false, always play wallpaper
+            // IsFocusedAppPause = true, only play on desktop.
+            return isFullScreenPause && ((isFocusedAppPause && !isDesktop) || isCovered);
         }
 
         private void PauseWallpapers()
         {
             foreach (var x in desktopCore.Wallpapers)
-            {
                 x.Pause();
-            }
         }
 
         private void PlayWallpapers()
@@ -475,6 +328,7 @@ namespace Lively.Core.Suspend
                 if (x.Screen.Equals(display))
                 {
                     x.Pause();
+                    break;
                 }
             }
         }
@@ -486,6 +340,7 @@ namespace Lively.Core.Suspend
                 if (x.Screen.Equals(display))
                 {
                     x.Play();
+                    break;
                 }
             }
         }
@@ -505,69 +360,67 @@ namespace Lively.Core.Suspend
                 if (x.Screen.Equals(display))
                 {
                     x.SetVolume(volume);
+                    break;
                 }
             }
         }
 
-        private bool IsLivelyPlugin(int pid)
+        private bool IsPauseDueToSystemState()
+        {
+            if (screenSaver.IsRunning)
+            {
+                // Pause running wallpaper if screensaver is using a separate instance of wallpaper.
+                return screenSaver.Mode == ScreensaverApplyMode.process;
+            }
+            else if (WallpaperPlayback == PlaybackState.paused || isLockScreen ||
+                (isRemoteSession && userSettings.Settings.RemoteDesktopPause == AppRules.pause))
+            {
+                return true;
+            }
+            else if (userSettings.Settings.BatteryPause == AppRules.pause &&
+                PowerUtil.GetACPowerStatus() == PowerUtil.ACLineStatus.Offline)
+            {
+                return true;
+            }
+            else if (userSettings.Settings.PowerSaveModePause == AppRules.pause &&
+                PowerUtil.GetBatterySaverStatus() == PowerUtil.SystemStatusFlag.On)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        private bool IsWallpaperPlugin(int pid)
         {
             return desktopCore.Wallpapers.Any(x => x.Proc != null && x.Proc.Id == pid);
         }
 
-        /// <summary>
-        /// Checks if hWnd window size is >95% for its running screen.
-        /// </summary>
-        /// <returns>True if window dimensions are greater.</returns>
-        private bool IsZoomedCustom(IntPtr hWnd)
+        private bool IsExcludedApp(IntPtr hwnd)
         {
+            var result = false;
             try
             {
-                System.Drawing.Rectangle screenBounds;
-                NativeMethods.RECT appBounds;
-                NativeMethods.GetWindowRect(hWnd, out appBounds);
-                screenBounds = displayManager.GetDisplayMonitorFromHWnd(hWnd).Bounds;
-                //If foreground app 95% working-area( -taskbar of monitor)
-                if ((appBounds.Bottom - appBounds.Top) >= screenBounds.Height * .95f && (appBounds.Right - appBounds.Left) >= screenBounds.Width * .95f)
-                    return true;
-                else
-                    return false;
-            }
-            catch
-            {
-                return false;
-            }
-        }
+                if (userSettings.AppRules.Count == 0 || NativeMethods.GetWindowThreadProcessId(hwnd, out int pid) == 0)
+                    return result;
 
-        /// <summary>
-        /// Finds out which displaydevice the given application is residing.
-        /// </summary>
-        /// <param name="handle"></param>
-        /// <returns></returns>
-        private DisplayMonitor MapWindowToMonitor(IntPtr handle)
-        {
-            try
-            {
-                return displayManager.GetDisplayMonitorFromHWnd(handle);
+                using Process process = Process.GetProcessById(pid);
+                for (int i = 0; i < userSettings.AppRules.Count; i++)
+                {
+                    var appRule = userSettings.AppRules[i];
+                    if (string.Equals(appRule.AppName, process.ProcessName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        result = appRule.Rule switch
+                        {
+                            AppRules.pause => true,
+                            // Unsupported
+                            AppRules.ignore or AppRules.kill => false,
+                            _ => false,
+                        };
+                    }
+                }
             }
-            catch
-            {
-                //what if there is no display connected? idk.
-                return null;
-            }
-        }
-
-        /// <summary>
-        /// Checks if the hWnd dimension is spanned across all displays.
-        /// </summary>
-        /// <param name="hWnd"></param>
-        /// <returns></returns>
-        private bool IsZoomedSpan(IntPtr hWnd)
-        {
-            NativeMethods.GetWindowRect(hWnd, out NativeMethods.RECT appBounds);
-            var screenArea = displayManager.VirtualScreenBounds;
-            // If foreground app 95% working-area( - taskbar of monitor)
-            return ((appBounds.Bottom - appBounds.Top) >= screenArea.Height * .95f &&
-               (appBounds.Right - appBounds.Left) >= screenArea.Width * .95f);
+            catch { }
+            return result;
         }
 
         /// <summary>
@@ -591,16 +444,6 @@ namespace Lively.Core.Suspend
             }
             catch { }
             return result;
-        }
-
-        /// <summary>
-        /// Is foreground live-wallpaper desktop.
-        /// </summary>
-        /// <returns></returns>
-        private bool IsDesktop()
-        {
-            IntPtr hWnd = NativeMethods.GetForegroundWindow();
-            return (IntPtr.Equals(hWnd, workerWOrig) || IntPtr.Equals(hWnd, progman));
         }
 
         protected virtual void Dispose(bool disposing)

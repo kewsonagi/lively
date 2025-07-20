@@ -121,12 +121,12 @@
     <value>僅在桌面為焦點時播放音訊</value>
   </data>
   <data name="Audio.Description" xml:space="preserve">
-    <value>桌布音量等級</value>
+    <value>全部桌布的音量等級</value>
   </data>
   <data name="Audio.Header" xml:space="preserve">
-    <value>主音量</value>
+    <value>音量</value>
   </data>
-  <data name="AudioGroup.Header" xml:space="preserve">
+  <data name="AudioGroup.Text" xml:space="preserve">
     <value>音訊</value>
   </data>
   <data name="Community.Description" xml:space="preserve">
@@ -166,13 +166,13 @@ Lively 動態桌布的螢幕保護程式主要用於為您的電腦新增另一�
     <value>確定要取消嗎？</value>
   </data>
   <data name="DescriptionDeleteConfirmation" xml:space="preserve">
-    <value>確定要從磁碟上永久刪除桌布嗎？</value>
+    <value>確定要從磁碟上永久刪除此桌布嗎？</value>
   </data>
   <data name="DescriptionDeleteConfirmationLibrary" xml:space="preserve">
     <value>確定要從資料庫刪除此桌布嗎？</value>
   </data>
   <data name="DragDropFile.Text" xml:space="preserve">
-    <value>簡單拖放檔案到此處</value>
+    <value>簡單地將拖放檔案到此處</value>
   </data>
   <data name="DescriptionExternalAppWarning" xml:space="preserve">
     <value>你正在開啟一個外部應用程式作為桌布。
@@ -180,7 +180,7 @@ Lively 動態桌布的螢幕保護程式主要用於為您的電腦新增另一�
 請僅在你信任此應用程式的來源時繼續。</value>
   </data>
   <data name="MinimizedTray.Text" xml:space="preserve">
-    <value>Lively 已最小化至系統匣，右鍵點選 Lively 動態桌布的圖示以存取更多選項。</value>
+    <value>Lively 動態桌布已最小化至系統匣，右鍵點選 Lively 動態桌布的圖示以存取更多選項。</value>
   </data>
   <data name="DescriptionPleaseRestartLively" xml:space="preserve">
     <value>請重新啟動 Lively 動態桌布以使設定生效</value>
@@ -283,7 +283,7 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="TextAllFiles" xml:space="preserve">
     <value>全部檔案</value>
   </data>
-  <data name="Application.Header" xml:space="preserve">
+  <data name="Application.Text" xml:space="preserve">
     <value>應用程式</value>
   </data>
   <data name="Attribution.Header" xml:space="preserve">
@@ -340,7 +340,7 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="DisplayPauseRulePerScreen.Content" xml:space="preserve">
     <value>單一螢幕</value>
   </data>
-  <data name="TextDownload" xml:space="preserve">
+  <data name="TextDownload.Content" xml:space="preserve">
     <value>下載</value>
   </data>
   <data name="EditWallpaper.Text" xml:space="preserve">
@@ -371,12 +371,12 @@ https://github.com/rocksdanister/lively/wiki</value>
     <value>開始</value>
   </data>
   <data name="TextHelpTranslate.Title" xml:space="preserve">
-    <value>幫助翻譯</value>
+    <value>協助翻譯</value>
   </data>
   <data name="TextHours" xml:space="preserve">
     <value>小時</value>
   </data>
-  <data name="TextInstall" xml:space="preserve">
+  <data name="TextInstall.Content" xml:space="preserve">
     <value>安裝</value>
   </data>
   <data name="TextKeyboard.Content" xml:space="preserve">
@@ -547,7 +547,7 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="TextUpdateAvailable" xml:space="preserve">
     <value>有更新可用！</value>
   </data>
-  <data name="TextUpdateCheck" xml:space="preserve">
+  <data name="TextUpdateCheck.Content" xml:space="preserve">
     <value>檢查更新</value>
   </data>
   <data name="TextupdateCheckFail" xml:space="preserve">
@@ -563,7 +563,7 @@ https://github.com/rocksdanister/lively/wiki</value>
     <value>影片</value>
   </data>
   <data name="TextWallpaperCommandlineArgs" xml:space="preserve">
-    <value>輸入可選命令列引數</value>
+    <value>啟動選項</value>
   </data>
   <data name="WallpaperFitFill.Content" xml:space="preserve">
     <value>填滿</value>
@@ -577,14 +577,14 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="WallpaperFitUniformToFill.Content" xml:space="preserve">
     <value>統一並填滿</value>
   </data>
-  <data name="WallpaperLayoutDuplicate.Content" xml:space="preserve">
-    <value>複製相同桌布</value>
+  <data name="WallpaperLayoutDuplicate.Text" xml:space="preserve">
+    <value>重複</value>
   </data>
-  <data name="WallpaperLayoutPerScreen.Content" xml:space="preserve">
-    <value>僅選定的螢幕</value>
+  <data name="WallpaperLayoutPerScreen.Text" xml:space="preserve">
+    <value>螢幕</value>
   </data>
-  <data name="WallpaperLayoutSpan.Content" xml:space="preserve">
-    <value>跨顯示器延伸</value>
+  <data name="WallpaperLayoutSpan.Text" xml:space="preserve">
+    <value>橫跨螢幕</value>
   </data>
   <data name="WallpaperType.Text" xml:space="preserve">
     <value>類型</value>
@@ -823,11 +823,8 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="ControlPanel.Title" xml:space="preserve">
     <value>控制台</value>
   </data>
-  <data name="TitleScreensaver" xml:space="preserve">
+  <data name="TitleScreensaver.Content" xml:space="preserve">
     <value>螢幕保護程式</value>
-  </data>
-  <data name="TitleScreensaverLockOnResume" xml:space="preserve">
-    <value>恢復工作階段後，顯示登入螢幕</value>
   </data>
   <data name="TitleSelectFile" xml:space="preserve">
     <value>選取檔案</value>
@@ -854,7 +851,7 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="TitleStreamWallpaperVideoQuality" xml:space="preserve">
     <value>影片品質</value>
   </data>
-  <data name="System.Header" xml:space="preserve">
+  <data name="System.Text" xml:space="preserve">
     <value>作業系統</value>
   </data>
   <data name="TaskbarTheme.Header" xml:space="preserve">
@@ -875,8 +872,11 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="VideoHardwareDecode.Header" xml:space="preserve">
     <value>GPU 解碼</value>
   </data>
-  <data name="TitleWallpaper" xml:space="preserve">
-    <value>桌布</value>
+  <data name="TitleWallpaper.Content" xml:space="preserve">
+    <value>桌布取色</value>
+  </data>
+  <data name="TitleCustomise.Content" xml:space="preserve">
+    <value>自訂</value>
   </data>
   <data name="WallpaperDir.Header" xml:space="preserve">
     <value>桌布目錄</value>
@@ -893,7 +893,7 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="WallpaperLayout.Header" xml:space="preserve">
     <value>放置方式</value>
   </data>
-  <data name="WallpaperPlaybackGroup.Header" xml:space="preserve">
+  <data name="WallpaperPlaybackGroup.Text" xml:space="preserve">
     <value>桌布播放行為</value>
   </data>
   <data name="TitleWarning" xml:space="preserve">
@@ -917,7 +917,7 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="FastUI.Header" xml:space="preserve">
     <value>快速啟動</value>
   </data>
-  <data name="WallpaperDirGroup.Header" xml:space="preserve">
+  <data name="WallpaperDirGroup.Text" xml:space="preserve">
     <value>檔案</value>
   </data>
   <data name="AppThemeDark.Content" xml:space="preserve">
@@ -932,13 +932,13 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="WindowsSettingsColor.Content" xml:space="preserve">
     <value>Windows 色彩設定</value>
   </data>
-  <data name="LaptopWallpaperPlaybackGroup.Header" xml:space="preserve">
+  <data name="LaptopWallpaperPlaybackGroup.Text" xml:space="preserve">
     <value>筆電</value>
   </data>
-  <data name="DeveloperGroup.Header" xml:space="preserve">
+  <data name="DeveloperGroup.Text" xml:space="preserve">
     <value>開發人員</value>
   </data>
-  <data name="AppearanceBehaviour.Header" xml:space="preserve">
+  <data name="AppearanceBehaviour.Text" xml:space="preserve">
     <value>外觀與行為</value>
   </data>
   <data name="ActiveWallpapers.Label" xml:space="preserve">
@@ -995,11 +995,11 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="Screensaver.Header" xml:space="preserve">
     <value>螢幕保護程式類型</value>
   </data>
-  <data name="ScreensaverModeDifferentWallpaper.Content" xml:space="preserve">
-    <value>分別設定組態</value>
+  <data name="ScreensaverModeDifferentWallpaper.Text" xml:space="preserve">
+    <value>自訂</value>
   </data>
-  <data name="ScreensaverModeSameWallpaper.Content" xml:space="preserve">
-    <value>與正在執行的桌布一致</value>
+  <data name="ScreensaverModeSameWallpaper.Text" xml:space="preserve">
+    <value>鏡像桌布</value>
   </data>
   <data name="ScreensaverPlugin.Title" xml:space="preserve">
     <value>需要擴充元件</value>
@@ -1175,7 +1175,7 @@ https://github.com/rocksdanister/lively/wiki</value>
   <data name="DevelopmentOnHold.Message" xml:space="preserve">
     <value>此功能開發已暫停</value>
   </data>
-  <data name="WallpaperPluginGroup.Header" xml:space="preserve">
+  <data name="WallpaperPluginGroup.Text" xml:space="preserve">
     <value>插件</value>
   </data>
   <data name="AddWallpaperAdvanced.Description" xml:space="preserve">
@@ -1212,12 +1212,57 @@ https://github.com/rocksdanister/lively/wiki</value>
     <value>當以管理員權限運作時，部分功能不一定可用</value>
   </data>
   <data name="DescriptionDownloadRequired.Text" xml:space="preserve">
-    <value>Additional files need to be downloaded for this feature</value>
+    <value>使用此功能需要下載附加檔案</value>
   </data>
   <data name="TitleDownloadRequired.Text" xml:space="preserve">
-    <value>Download Required</value>
+    <value>需要進行下載</value>
   </data>
   <data name="TitleDownload.Content" xml:space="preserve">
     <value>下載</value>
+  </data>
+  <data name="TextBecomePatreonMember.Content" xml:space="preserve">
+    <value>成為 Patreon 支持者</value>
+  </data>
+  <data name="TextPatreonMembersThankYou.Text" xml:space="preserve">
+    <value>感謝所有幫助此專案的成員</value>
+  </data>
+  <data name="TitlePatreon.Text" xml:space="preserve">
+    <value>Patreon 支持者</value>
+  </data>
+  <data name="SelectScreensaverCustomMode.Text" xml:space="preserve">
+    <value>選擇螢幕保護程式</value>
+  </data>
+  <data name="WebViewRequired.Message" xml:space="preserve">
+    <value>需要Microsoft WebView2以便瀏覽此內容</value>
+  </data>
+  <data name="WebViewRequired.Title" xml:space="preserve">
+    <value>需要擴充元件</value>
+  </data>
+  <data name="AppMusicExclusion.Description" xml:space="preserve">
+    <value>選擇要排除顯示音訊資訊的應用程式</value>
+  </data>
+  <data name="AppMusicExclusion.Header" xml:space="preserve">
+    <value>排除應用程式</value>
+  </data>
+  <data name="RestartCommand.Content" xml:space="preserve">
+    <value>重新啟動</value>
+  </data>
+  <data name="WallpaperMusicGroup.Text" xml:space="preserve">
+    <value>音樂</value>
+  </data>
+  <data name="WallpaperRestartRequiredNotify.Message" xml:space="preserve">
+    <value>桌布需要重新啟動以使設定生效</value>
+  </data>
+  <data name="LanguageSettingsItemSystemDefault.Content" xml:space="preserve">
+    <value>與系統語言相同</value>
+  </data>
+  <data name="InfoSettingsRestartRequest.Message" xml:space="preserve">
+    <value>請重新啟動 Lively 動態桌布以使設定生效.</value>
+  </data>
+  <data name="ScreensaverLockOnResume.Header" xml:space="preserve">
+    <value>恢復工作階段後，顯示登入螢幕</value>
+  </data>
+  <data name="ScreensaverFadeIn.Header" xml:space="preserve">
+    <value>Fade to black before start</value>
   </data>
 </root>

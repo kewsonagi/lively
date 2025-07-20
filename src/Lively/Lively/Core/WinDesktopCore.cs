@@ -1,39 +1,31 @@
 ﻿using Lively.Common;
-using Lively.Common.API;
 using Lively.Common.Com;
+using Lively.Common.Exceptions;
 using Lively.Common.Extensions;
+using Lively.Common.Factories;
 using Lively.Common.Helpers;
 using Lively.Common.Helpers.Files;
 using Lively.Common.Helpers.Pinvoke;
 using Lively.Common.Helpers.Shell;
-using Lively.Common.Helpers.Storage;
+using Lively.Common.Services;
 using Lively.Core.Display;
-using Lively.Core.Wallpapers;
 using Lively.Core.Watchdog;
 using Lively.Factories;
 using Lively.Helpers;
-using Lively.Helpers.Hardware;
 using Lively.Models;
-using Lively.Services;
-using Lively.ViewModels;
-using Lively.Views;
-using Microsoft.Extensions.DependencyInjection;
+using Lively.Models.Enums;
+using Lively.Models.Message;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Threading;
 using WinEventHook;
-using static Lively.Common.Errors;
 
 namespace Lively.Core
 {
@@ -46,9 +38,9 @@ namespace Lively.Core
         private IntPtr workerw;
         public IntPtr DesktopWorkerW => workerw;
         private bool disposedValue;
+        private readonly bool isRaisedDesktop;
         private readonly List<WallpaperLayoutModel> wallpapersDisconnected = new();
 
-        public event EventHandler<WallpaperUpdateArgs> WallpaperUpdated;
         public event EventHandler<Exception> WallpaperError;
         public event EventHandler WallpaperChanged;
         public event EventHandler WallpaperReset;
@@ -59,14 +51,12 @@ namespace Lively.Core
         private readonly ITransparentTbService ttbService;
         private readonly IWatchdogService watchdog;
         private readonly IDisplayManager displayManager;
-        private readonly IRunnerService runner;
         private readonly WindowEventHook workerWHook;
 
         public WinDesktopCore(IUserSettingsService userSettings,
             IDisplayManager displayManager,
             ITransparentTbService ttbService,
             IWatchdogService watchdog,
-            IRunnerService runner,
             IWallpaperPluginFactory wallpaperFactory,
             IWallpaperLibraryFactory wallpaperLibraryFactory)
         {
@@ -74,12 +64,18 @@ namespace Lively.Core
             this.displayManager = displayManager;
             this.ttbService = ttbService;
             this.watchdog = watchdog;
-            this.runner = runner;
             this.wallpaperFactory = wallpaperFactory;
             this.wallpaperLibraryFactory = wallpaperLibraryFactory;
 
+            if (App.IsExclusiveScreensaverMode)
+                return;
+
             if (SystemParameters.HighContrast)
                 Logger.Warn("Highcontrast mode detected, some functionalities may not work properly.");
+
+            isRaisedDesktop = IsRaisedDesktopEnvironment();
+            if (isRaisedDesktop)
+                Logger.Info("Raised desktop environment detected.");
 
             this.displayManager.DisplayUpdated += DisplaySettingsChanged_Hwnd;
             WallpaperChanged += SetupDesktop_WallpaperChanged;
@@ -140,8 +136,7 @@ namespace Lively.Core
                 Logger.Info($"Setting wallpaper: {wallpaper.Title} | {wallpaper.FilePath}");
 
                 // Verify file exists if outside wallpaper install folder
-                var fileExists = !wallpaper.LivelyInfo.IsAbsolutePath ? 
-                    File.Exists(wallpaper.FilePath) : wallpaper.LivelyInfo.Type.IsOnlineWallpaper() || File.Exists(wallpaper.FilePath);
+                var fileExists = !wallpaper.LivelyInfo.IsAbsolutePath || wallpaper.LivelyInfo.Type.IsOnlineWallpaper() || File.Exists(wallpaper.FilePath);
                 if (!fileExists)
                 {
                     Logger.Info($"Skipping wallpaper, file {wallpaper.LivelyInfo.FileName} not found.");
@@ -159,13 +154,11 @@ namespace Lively.Core
                     {
                         case WallpaperArrangement.per:
                             {
-                                IWallpaper instance = wallpaperFactory.CreateWallpaper(wallpaper, display, userSettings);
+                                IWallpaper instance = wallpaperFactory.CreateWallpaper(wallpaper, display, userSettings.Settings.WallpaperArrangement, userSettings);
+                                instance.Exited += Wallpaper_Exited;
                                 await instance.ShowAsync();
-                                var dialogOk = await ShowWallpaperDialog(instance);
-                                if (!dialogOk)
-                                    return;
 
-                                CloseWallpaper(instance.Screen, fireEvent: false, terminate: true);
+                                CloseWallpaper(instance.Screen, fireEvent: false);
                                 if (!TrySetWallpaperPerScreen(instance.Handle, instance.Screen))
                                     Logger.Error("Failed to set wallpaper as child of WorkerW");
 
@@ -183,13 +176,11 @@ namespace Lively.Core
                             break;
                         case WallpaperArrangement.span:
                             {
-                                IWallpaper instance = wallpaperFactory.CreateWallpaper(wallpaper, display, userSettings);
+                                IWallpaper instance = wallpaperFactory.CreateWallpaper(wallpaper, display, userSettings.Settings.WallpaperArrangement, userSettings);
+                                instance.Exited += Wallpaper_Exited;
                                 await instance.ShowAsync();
-                                var dialogOk = await ShowWallpaperDialog(instance);
-                                if (!dialogOk)
-                                    return;
 
-                                CloseAllWallpapers(fireEvent: false, terminate: true);
+                                CloseAllWallpapers(fireEvent: false);
                                 if (!TrySetWallpaperSpanScreen(instance.Handle))
                                     Logger.Error("Failed to set wallpaper as child of WorkerW");
 
@@ -206,14 +197,12 @@ namespace Lively.Core
                             break;
                         case WallpaperArrangement.duplicate:
                             {
-                                CloseAllWallpapers(false, true);
+                                CloseAllWallpapers(false);
                                 foreach (var item in displayManager.DisplayMonitors)
                                 {
-                                    IWallpaper instance = wallpaperFactory.CreateWallpaper(wallpaper, item, userSettings);
+                                    IWallpaper instance = wallpaperFactory.CreateWallpaper(wallpaper, item, userSettings.Settings.WallpaperArrangement, userSettings);
+                                    instance.Exited += Wallpaper_Exited;
                                     await instance.ShowAsync();
-                                    var dialogOk = await ShowWallpaperDialog(instance);
-                                    if (!dialogOk)
-                                        return;
 
                                     if (!TrySetWallpaperPerScreen(instance.Handle, instance.Screen))
                                         Logger.Error("Failed to set wallpaper as child of WorkerW");
@@ -249,13 +238,6 @@ namespace Lively.Core
                     Logger.Error(ex1);
                     WallpaperError?.Invoke(this, new WallpaperPluginNotFoundException(ex1.Message));
                     WallpaperChanged?.Invoke(this, EventArgs.Empty);
-
-                    if (wallpaper.DataType == LibraryItemType.processing)
-                    {
-                        WallpaperUpdated?.Invoke(this, new WallpaperUpdateArgs() { Category = UpdateWallpaperType.remove, Info = wallpaper.LivelyInfo, InfoPath = wallpaper.LivelyInfoFolderPath });
-                        //Deleting from core because incase UI client not running.
-                        await FileUtil.TryDeleteDirectoryAsync(wallpaper.LivelyInfoFolderPath, 0, 1000);
-                    }
                 }
                 catch (Win32Exception ex2)
                 {
@@ -277,6 +259,11 @@ namespace Lively.Core
             {
                 semaphoreSlimWallpaperLoadingLock.Release();
             }
+        }
+
+        private void Wallpaper_Exited(object sender, EventArgs e)
+        {
+            RefreshDesktop();
         }
 
         private void UpdateWorkerW()
@@ -309,121 +296,6 @@ namespace Lively.Core
                 Logger.Error("WorkerW destroyed.");
                 await ResetWallpaperAsync();
             }
-        }
-
-        private async Task<bool> ShowWallpaperDialog(IWallpaper wallpaper)
-        {
-            var cancelled = false;
-            switch (wallpaper.Model.DataType)
-            {
-                case LibraryItemType.edit:
-                case LibraryItemType.processing:
-                case LibraryItemType.multiImport:
-                    //case LibraryItemType.cmdImport:
-                    try
-                    {
-                        runner.SetBusyUI(true);
-                        //backup.. once processed is done, becomes ready.
-                        var type = wallpaper.Model.DataType;
-                        if (type == LibraryItemType.edit)
-                        {
-                            CloseWallpaper(wallpaper.Model, terminate: true);
-                        }
-                        var tcs = new TaskCompletionSource<object>();
-                        var thread = new Thread(() =>
-                        {
-                            try
-                            {
-                                _ = Application.Current.Dispatcher.Invoke(DispatcherPriority.Normal, new ThreadStart(delegate
-                                {
-                                    var pWindow = new LibraryPreview(wallpaper)
-                                    {
-                                        Topmost = true,
-                                        ShowActivated = true,
-                                        WindowStartupLocation = WindowStartupLocation.CenterScreen
-                                    };
-                                    //pWindow.Closed += (s, a) => tcs.SetResult(null);
-                                    var vm = (LibraryPreviewViewModel)pWindow.DataContext;
-                                    vm.DetailsUpdated += (s, e) =>
-                                    {
-                                        cancelled = e.Category == UpdateWallpaperType.remove;
-                                        if (cancelled || e.Category == UpdateWallpaperType.done)
-                                        {
-                                            tcs.SetResult(null);
-                                        }
-                                        WallpaperUpdated?.Invoke(this, e);
-                                    };
-                                    pWindow.Show();
-                                    if (runner.IsVisibleUI)
-                                    {
-                                        var client = runner.HwndUI;
-                                        var preview = new WindowInteropHelper(pWindow).Handle;
-                                        NativeMethods.GetWindowRect(client, out NativeMethods.RECT crt);
-                                        NativeMethods.GetWindowRect(preview, out NativeMethods.RECT prt);
-                                        //Assigning left, top to window directly not working correctly with display scaling..
-                                        NativeMethods.SetWindowPos(preview,
-                                            0,
-                                            crt.Left + (crt.Right - crt.Left) / 2 - (prt.Right - prt.Left) / 2,
-                                            crt.Top - (crt.Top - crt.Bottom) / 2 - (prt.Bottom - prt.Top) / 2,
-                                            0,
-                                            0,
-                                            0x0001 | 0x0004);
-                                    }
-                                }));
-                            }
-                            catch (Exception e)
-                            {
-                                tcs.SetException(e);
-                                Logger.Error(e);
-                            }
-                        });
-                        thread.SetApartmentState(ApartmentState.STA);
-                        thread.Start();
-                        await tcs.Task;
-
-                        if (type == LibraryItemType.edit)
-                        {
-                            wallpaper.Terminate();
-                            return false;
-                        }
-                        else if (type == LibraryItemType.multiImport)
-                        {
-                            wallpaper.Terminate();
-                            WallpaperChanged?.Invoke(this, EventArgs.Empty);
-                            return false;
-                        }
-                    }
-                    finally
-                    {
-                        runner.SetBusyUI(false);
-                    }
-                    break;
-                case LibraryItemType.ready:
-                    break;
-                default:
-                    break;
-            }
-
-            if (cancelled)
-            {
-                //User cancelled/fail!
-                wallpaper.Terminate();
-                DesktopUtil.RefreshDesktop();
-
-                try
-                {
-                    //Deleting here incase UI client is not running
-                    await FileUtil.TryDeleteDirectoryAsync(wallpaper.Model.LivelyInfoFolderPath, 0, 1000);
-                    if (wallpaper.LivelyPropertyCopyPath != null)
-                        await FileUtil.TryDeleteDirectoryAsync(Directory.GetParent(Path.GetDirectoryName(wallpaper.LivelyPropertyCopyPath)).FullName, 0, 1000);
-                }
-                catch (Exception ie)
-                {
-                    Logger.Error(ie);
-                }
-            }
-
-            return !cancelled;
         }
 
         private async Task SetDesktopPictureOrLockscreen(IWallpaper wallpaper)
@@ -537,7 +409,7 @@ namespace Lively.Core
             {
                 //LogUtil.LogWin32Error("Failed to set perscreen wallpaper(2)");
             }
-            DesktopUtil.RefreshDesktop();
+            RefreshDesktop();
             return success;
         }
 
@@ -556,7 +428,7 @@ namespace Lively.Core
             {
                 //LogUtil.LogWin32Error("Failed to set span wallpaper");
             }
-            DesktopUtil.RefreshDesktop();
+            RefreshDesktop();
             return success;
         }
 
@@ -572,7 +444,7 @@ namespace Lively.Core
                 Logger.Info("Restarting wallpaper service..");
                 // Copy existing wallpapers
                 var originalWallpapers = Wallpapers.ToList();
-                CloseAllWallpapers(true);
+                CloseAllWallpapers(false);
                 // Restart workerw
                 UpdateWorkerW();
                 if (workerw == IntPtr.Zero)
@@ -593,6 +465,34 @@ namespace Lively.Core
             {
                 semaphoreSlimWallpaperLoadingLock.Release();
             }
+        }
+
+        public async Task RestartWallpaper()
+        {
+            // Copy existing wallpapers
+            var originalWallpapers = Wallpapers.ToList();
+            CloseAllWallpapers(false);
+            foreach (var item in originalWallpapers)
+            {
+                await SetWallpaperAsync(item.Model, item.Screen);
+                if (userSettings.Settings.WallpaperArrangement == WallpaperArrangement.duplicate)
+                    break;
+            }
+
+        }
+
+        public async Task RestartWallpaper(DisplayMonitor display)
+        {
+            // Copy existing wallpapers
+            var originalWallpapers = Wallpapers.Where(x => x.Screen.Equals(display)).ToList();
+            CloseWallpaper(display, false);
+            foreach (var item in originalWallpapers)
+            {
+                await SetWallpaperAsync(item.Model, item.Screen);
+                if (userSettings.Settings.WallpaperArrangement == WallpaperArrangement.duplicate)
+                    break;
+            }
+
         }
 
         private void SetupDesktop_WallpaperChanged(object sender, EventArgs e)
@@ -757,7 +657,7 @@ namespace Lively.Core
                     }
                 }
             }
-            DesktopUtil.RefreshDesktop();
+            RefreshDesktop();
         }
 
         private void RestoreDisconnectedWallpapers()
@@ -859,23 +759,16 @@ namespace Lively.Core
             }
         }
 
-        public void CloseAllWallpapers(bool terminate = false)
+        public void CloseAllWallpapers()
         {
-            CloseAllWallpapers(fireEvent: true, terminate: terminate);
+            CloseAllWallpapers(fireEvent: true);
         }
 
-        private void CloseAllWallpapers(bool fireEvent, bool terminate)
+        private void CloseAllWallpapers(bool fireEvent)
         {
             if (Wallpapers.Count > 0)
             {
-                if (terminate)
-                {
-                    wallpapers.ForEach(x => x.Terminate());
-                }
-                else
-                {
-                    wallpapers.ForEach(x => x.Close());
-                }
+                wallpapers.ForEach(x => x.Close());
                 wallpapers.Clear();
                 watchdog.Clear();
 
@@ -886,12 +779,12 @@ namespace Lively.Core
             }
         }
 
-        public void CloseWallpaper(DisplayMonitor display, bool terminate = false)
+        public void CloseWallpaper(DisplayMonitor display)
         {
-            CloseWallpaper(display: display, fireEvent: true, terminate: terminate);
+            CloseWallpaper(display: display, fireEvent: true);
         }
 
-        private void CloseWallpaper(DisplayMonitor display, bool fireEvent, bool terminate)
+        private void CloseWallpaper(DisplayMonitor display, bool fireEvent)
         {
             var tmp = wallpapers.FindAll(x => x.Screen.Equals(display));
             if (tmp.Count > 0)
@@ -903,14 +796,7 @@ namespace Lively.Core
                         watchdog.Remove(x.Proc.Id);
                     }
 
-                    if (terminate)
-                    {
-                        x.Terminate();
-                    }
-                    else
-                    {
-                        x.Close();
-                    }
+                    x.Close();
                 });
                 wallpapers.RemoveAll(x => tmp.Contains(x));
 
@@ -921,7 +807,7 @@ namespace Lively.Core
             }
         }
 
-        public void CloseWallpaper(WallpaperType type, bool terminate = false)
+        public void CloseWallpaper(WallpaperType type)
         {
             var tmp = wallpapers.FindAll(x => x.Category == type);
             if (tmp.Count > 0)
@@ -933,26 +819,19 @@ namespace Lively.Core
                         watchdog.Remove(x.Proc.Id);
                     }
 
-                    if (terminate)
-                    {
-                        x.Terminate();
-                    }
-                    else
-                    {
-                        x.Close();
-                    }
+                    x.Close();
                 });
                 wallpapers.RemoveAll(x => tmp.Contains(x));
                 WallpaperChanged?.Invoke(this, EventArgs.Empty);
             }
         }
 
-        public void CloseWallpaper(LibraryModel wp, bool terminate = false)
+        public void CloseWallpaper(LibraryModel wp)
         {
-            CloseWallpaper(wp: wp, fireEvent: true, terminate: terminate);
+            CloseWallpaper(wp: wp, fireEvent: true);
         }
 
-        private void CloseWallpaper(LibraryModel wp, bool fireEvent, bool terminate)
+        private void CloseWallpaper(LibraryModel wp, bool fireEvent)
         {
             //NOTE: To maintain compatibility with existing code ILibraryModel is still used.
             var tmp = wallpapers.FindAll(x => x.Model.LivelyInfoFolderPath == wp.LivelyInfoFolderPath);
@@ -965,14 +844,7 @@ namespace Lively.Core
                         watchdog.Remove(x.Proc.Id);
                     }
 
-                    if (terminate)
-                    {
-                        x.Terminate();
-                    }
-                    else
-                    {
-                        x.Close();
-                    }
+                    x.Close();
                 });
                 wallpapers.RemoveAll(x => tmp.Contains(x));
 
@@ -1023,49 +895,10 @@ namespace Lively.Core
             });
         }
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!disposedValue)
-            {
-                if (disposing)
-                {
-                    WallpaperChanged -= SetupDesktop_WallpaperChanged;
-                    workerWHook?.Dispose();
-                    CloseAllWallpapers(false, true);
-                    DesktopUtil.RefreshDesktop();
-
-                    //not required.. (need to restart if used.)
-                    //NativeMethods.SendMessage(workerw, (int)NativeMethods.WM.CLOSE, IntPtr.Zero, IntPtr.Zero);
-                }
-
-                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
-                // TODO: set large fields to null
-                disposedValue = true;
-            }
-        }
-
-        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
-        // ~WinDesktopCore()
-        // {
-        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-        //     Dispose(disposing: false);
-        // }
-
-        public void Dispose()
-        {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
-
-        #region helpers
-
-        private static IntPtr CreateWorkerW()
+        private IntPtr CreateWorkerW()
         {
             // Fetch the Progman window
             var progman = NativeMethods.FindWindow("Progman", null);
-
-            IntPtr result = IntPtr.Zero;
 
             // Send 0x052C to Progman. This message directs Progman to spawn a 
             // WorkerW behind the desktop icons. If it is already there, nothing 
@@ -1076,53 +909,56 @@ namespace Lively.Core
                                    new IntPtr(0x1),
                                    NativeMethods.SendMessageTimeoutFlags.SMTO_NORMAL,
                                    1000,
-                                   out result);
-            // Spy++ output
-            // .....
-            // 0x00010190 "" WorkerW
-            //   ...
-            //   0x000100EE "" SHELLDLL_DefView
-            //     0x000100F0 "FolderView" SysListView32
-            // 0x00100B8A "" WorkerW       <-- This is the WorkerW instance we are after!
-            // 0x000100EC "Program Manager" Progman
+                                   out _);
+
             var workerw = IntPtr.Zero;
 
-            // We enumerate all Windows, until we find one, that has the SHELLDLL_DefView 
-            // as a child. 
-            // If we found that window, we take its next sibling and assign it to workerw.
-            NativeMethods.EnumWindows(new NativeMethods.EnumWindowsProc((tophandle, topparamhandle) =>
+            if (isRaisedDesktop)
             {
-                IntPtr p = NativeMethods.FindWindowEx(tophandle,
-                                            IntPtr.Zero,
-                                            "SHELLDLL_DefView",
-                                            IntPtr.Zero);
-
-                if (p != IntPtr.Zero)
-                {
-                    // Gets the WorkerW Window after the current one.
-                    workerw = NativeMethods.FindWindowEx(IntPtr.Zero,
-                                                    tophandle,
-                                                    "WorkerW",
-                                                    IntPtr.Zero);
-                }
-
-                return true;
-            }), IntPtr.Zero);
-
-            // Some Windows 11 builds have a different Progman window layout.
-            // If the above code failed to find WorkerW, we should try this.
-            // Spy++ output
-            // 0x000100EC "Program Manager" Progman
-            //   0x000100EE "" SHELLDLL_DefView
-            //     0x000100F0 "FolderView" SysListView32
-            //   0x00100B8A "" WorkerW       <-- This is the WorkerW instance we are after!
-            if (workerw == IntPtr.Zero)
-            {
+                // Some Windows 11 builds have a different Progman window layout.
+                // Spy++ output
+                // 0x000100EC "Program Manager" Progman
+                //   0x000100EE "" SHELLDLL_DefView
+                //     0x000100F0 "FolderView" SysListView32
+                //   0x00100B8A "" WorkerW       <-- This is the WorkerW instance we are after!
                 workerw = NativeMethods.FindWindowEx(progman,
                                                 IntPtr.Zero,
                                                 "WorkerW",
                                                 IntPtr.Zero);
             }
+            else
+            {
+                // Spy++ output
+                // .....
+                // 0x00010190 "" WorkerW
+                //   ...
+                //   0x000100EE "" SHELLDLL_DefView
+                //     0x000100F0 "FolderView" SysListView32
+                // 0x00100B8A "" WorkerW       <-- This is the WorkerW instance we are after!
+                // 0x000100EC "Program Manager" Progman
+                // We enumerate all Windows, until we find one, that has the SHELLDLL_DefView 
+                // as a child. 
+                // If we found that window, we take its next sibling and assign it to workerw.
+                NativeMethods.EnumWindows(new NativeMethods.EnumWindowsProc((tophandle, topparamhandle) =>
+                {
+                    IntPtr p = NativeMethods.FindWindowEx(tophandle,
+                                                IntPtr.Zero,
+                                                "SHELLDLL_DefView",
+                                                IntPtr.Zero);
+
+                    if (p != IntPtr.Zero)
+                    {
+                        // Gets the WorkerW Window after the current one.
+                        workerw = NativeMethods.FindWindowEx(IntPtr.Zero,
+                                                        tophandle,
+                                                        "WorkerW",
+                                                        IntPtr.Zero);
+                    }
+
+                    return true;
+                }), IntPtr.Zero);
+            }
+
             return workerw;
         }
 
@@ -1155,6 +991,56 @@ namespace Lively.Core
             return true;
         }
 
-        #endregion // helpers
+        /// <summary>
+        /// Force redraw desktop - clears wallpaper persisting on screen.
+        /// </summary>
+        public void RefreshDesktop()
+        {
+            if (isRaisedDesktop)
+                return;
+
+            NativeMethods.SystemParametersInfo(NativeMethods.SPI_SETDESKWALLPAPER, 0, null, NativeMethods.SPIF_UPDATEINIFILE);
+        }
+
+        private static bool IsRaisedDesktopEnvironment()
+        {
+            IntPtr progman = NativeMethods.FindWindow("Progman", null);
+            return WindowUtil.HasExtendedStyle(progman, NativeMethods.WindowStyles.WS_EX_NOREDIRECTIONBITMAP);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    WallpaperChanged -= SetupDesktop_WallpaperChanged;
+                    workerWHook?.Dispose();
+                    CloseAllWallpapers(false);
+                    RefreshDesktop();
+
+                    //not required.. (need to restart if used.)
+                    //NativeMethods.SendMessage(workerw, (int)NativeMethods.WM.CLOSE, IntPtr.Zero, IntPtr.Zero);
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
+                disposedValue = true;
+            }
+        }
+
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        // ~WinDesktopCore()
+        // {
+        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+        //     Dispose(disposing: false);
+        // }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
     }
 }

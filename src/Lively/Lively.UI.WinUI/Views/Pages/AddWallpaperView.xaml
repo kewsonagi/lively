@@ -2,8 +2,8 @@
     x:Class="Lively.UI.WinUI.Views.Pages.AddWallpaperView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:WinUICommunity"
-    xmlns:converters="using:CommunityToolkit.WinUI.UI.Converters"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:converters="using:CommunityToolkit.WinUI.Converters"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:Lively.UI.WinUI.Views.Pages"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -76,14 +76,14 @@
         </Grid>
 
         <StackPanel Grid.Row="1">
-            <controls:SettingsCard x:Uid="AddWallpaperFileBrowse" Margin="0,10,0,0">
+            <controls:SettingsCard
+                x:Uid="AddWallpaperFileBrowse"
+                Margin="0,10,0,0"
+                Command="{Binding BrowseFileCommand}"
+                IsClickEnabled="True">
                 <controls:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xEB9F;" />
                 </controls:SettingsCard.HeaderIcon>
-                <Button
-                    x:Uid="TextOpen"
-                    MinWidth="150"
-                    Command="{Binding BrowseFileCommand}" />
             </controls:SettingsCard>
             <!--<InfoBar
                 IsClosable="False"
@@ -94,6 +94,7 @@
 
             <controls:SettingsExpander
                 x:Uid="EnterUrl"
+                MinWidth="500"
                 Margin="0,0,0,0"
                 IsExpanded="True">
                 <controls:SettingsExpander.HeaderIcon>
@@ -101,19 +102,21 @@
                 </controls:SettingsExpander.HeaderIcon>
                 <controls:SettingsExpander.Items>
                     <controls:SettingsCard ContentAlignment="Left">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="325" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox Grid.Column="0" Text="{Binding WebUrlText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <StackPanel
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="4">
+                            <TextBox
+                                Width="350"
+                                Text="{Binding WebUrlText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                TextWrapping="NoWrap" />
                             <Button
-                                Grid.Column="1"
-                                Margin="5,0,0,0"
+                                Background="Transparent"
+                                BorderThickness="0"
                                 Command="{Binding BrowseWebCommand}">
                                 <FontIcon Glyph="&#xE72A;" />
                             </Button>
-                        </Grid>
+                        </StackPanel>
                     </controls:SettingsCard>
                 </controls:SettingsExpander.Items>
             </controls:SettingsExpander>

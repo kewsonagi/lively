@@ -1,7 +1,6 @@
-﻿using Lively.Common;
-using Lively.Common.API;
-using Lively.Grpc.Common.Proto.Desktop;
-using Lively.Models;
+﻿using Lively.Models;
+using Lively.Models.Enums;
+using Lively.Models.Message;
 using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
@@ -15,12 +14,14 @@ namespace Lively.Grpc.Client
         Version AssemblyVersion { get; }
         bool IsCoreInitialized { get; }
 
-        Task CloseAllWallpapers(bool terminate = false);
-        Task CloseWallpaper(DisplayMonitor monitor, bool terminate = false);
-        Task CloseWallpaper(LibraryModel item, bool terminate = false);
-        Task CloseWallpaper(WallpaperType type, bool terminate = false);
+        Task CloseAllWallpapers();
+        Task CloseWallpaper(DisplayMonitor monitor);
+        Task CloseWallpaper(LibraryModel item);
+        Task CloseWallpaper(WallpaperType type);
         Task SetWallpaper(LibraryModel item, DisplayMonitor display);
         Task SetWallpaper(string livelyInfoPath, string monitorId);
+        Task<bool> EditWallpaper(string livelyInfoPath);
+        Task<string> CreateWallpaper(string filePath, WallpaperType type, string arguments = null);
         void SendMessageWallpaper(LibraryModel obj, IpcMessage msg);
         void SendMessageWallpaper(DisplayMonitor display, LibraryModel obj, IpcMessage msg);
         Task PreviewWallpaper(string livelyInfoPath);
@@ -28,7 +29,6 @@ namespace Lively.Grpc.Client
 
         event EventHandler WallpaperChanged;
         event EventHandler<Exception> WallpaperError;
-        event EventHandler<WallpaperUpdatedData> WallpaperUpdated;
     }
 
     public class WallpaperData

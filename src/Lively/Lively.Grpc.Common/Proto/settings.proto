@@ -72,6 +72,13 @@ message SettingsDataModel {
     AppThemeBackground application_theme_background = 60;
     string application_theme_background_path = 61;
     int32 theme_bundle_version = 62;
+    string app_previous_version = 63;
+    WallpaperArrangementRule screensaver_arrangement = 64;
+    ScreensaverTypeRule screensaver_type = 65;
+    bool updatedNotify = 66;
+    bool screensaver_plugin_notify = 67;
+    int32 screensaver_volume_global = 68;
+    bool screensaver_fade_in = 69;
 }
 
 message AppRulesSettings {
@@ -120,6 +127,7 @@ enum ProcessMonitorRule {
 	foreground = 0;
 	all = 1;
 	gamemode = 2;
+    grid = 3;
 }
 
 enum WallpaperScalerRule {
@@ -224,4 +232,10 @@ enum ScreensaverIdleTime
     min45 = 10;
     min60 = 11;
     min120 = 12;
+}
+
+enum ScreensaverTypeRule
+{
+    wallpaper_ = 0;
+    different = 1;
 }

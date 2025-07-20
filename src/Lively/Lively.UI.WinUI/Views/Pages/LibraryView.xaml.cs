@@ -1,49 +1,31 @@
-﻿using Lively.Common.Helpers.Files;
+﻿using Lively.Common.Services;
 using Lively.Grpc.Client;
 using Lively.Models;
-using Lively.UI.WinUI.Helpers;
-using Lively.UI.WinUI.Services;
-using Lively.UI.WinUI.ViewModels;
-using Lively.UI.WinUI.Views.LivelyProperty;
-using Lively.UI.WinUI.Views.Pages.Gallery;
+using Lively.Models.Enums;
+using Lively.UI.Shared.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.ApplicationModel.DataTransfer;
-using Windows.ApplicationModel.Resources;
 using Windows.Foundation;
-using Windows.Foundation.Collections;
-using Windows.Storage.Pickers;
-using WinUICommunity;
-
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
 
 namespace Lively.UI.WinUI.Views.Pages
 {
-    /// <summary>
-    /// An empty page that can be used on its own or navigated to within a Frame.
-    /// </summary>
     public sealed partial class LibraryView : Page
     {
         private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
         private LibraryModel selectedTile;
 
-        private readonly ResourceLoader i18n;
+        private readonly IResourceService i18n;
         private readonly IUserSettingsClient userSettings;
         private readonly IDesktopCoreClient desktopCore;
         private readonly LibraryViewModel libraryVm;
         private readonly IDialogService dialogService;
+        private readonly IDisplayManagerClient displayManager;
 
         public LibraryView()
         {
@@ -51,9 +33,10 @@ namespace Lively.UI.WinUI.Views.Pages
             this.libraryVm = App.Services.GetRequiredService<LibraryViewModel>();
             this.userSettings = App.Services.GetRequiredService<IUserSettingsClient>();
             this.dialogService = App.Services.GetRequiredService<IDialogService>();
+            this.displayManager = App.Services.GetRequiredService<IDisplayManagerClient>();
+            this.i18n = App.Services.GetRequiredService<IResourceService>();
 
             this.InitializeComponent();
-            i18n = ResourceLoader.GetForViewIndependentUse();
             this.DataContext = libraryVm;
         }
 
@@ -75,104 +58,54 @@ namespace Lively.UI.WinUI.Views.Pages
                     await libraryVm.WallpaperShowOnDisk(obj);
                     break;
                 case "setWallpaper":
-                    await desktopCore.SetWallpaper(obj, userSettings.Settings.SelectedDisplay);
+                    DisplayMonitor monitor;
+                    if (userSettings.Settings.RememberSelectedScreen)
+                        monitor = userSettings.Settings.SelectedDisplay;
+                    else
+                        monitor = displayManager.DisplayMonitors.Count == 1 || userSettings.Settings.WallpaperArrangement != WallpaperArrangement.per ?
+                           displayManager.DisplayMonitors.FirstOrDefault(x => x.IsPrimary) : await dialogService.ShowDisplayChooseDialogAsync();
+                    if (monitor is null)
+                        return;
+
+                    await desktopCore.SetWallpaper(obj, monitor);
                     break;
                 case "exportWallpaper":
-                    {
-                        _ = await new ContentDialog()
-                        {
-                            Title = i18n.GetString("TitleShareWallpaper/Text"),
-                            Content = new ShareWallpaperView()
-                            {
-                                DataContext = new ShareWallpaperViewModel(obj),
-                            },
-                            PrimaryButtonText = i18n.GetString("TextOK"),
-                            DefaultButton = ContentDialogButton.Primary,
-                            XamlRoot = this.Content.XamlRoot,
-                        }.ShowAsyncQueue();
-                    }
+                    await dialogService.ShowShareWallpaperDialogAsync(obj);
                     break;
                 case "deleteWallpaper":
-                    {
-                        var result = await new ContentDialog()
-                        {
-                            Title = obj.LivelyInfo.IsAbsolutePath ?
-                                i18n.GetString("DescriptionDeleteConfirmationLibrary") : i18n.GetString("DescriptionDeleteConfirmation"),
-                            Content = new LibraryAboutView() { DataContext = new LibraryAboutViewModel(obj) },
-                            PrimaryButtonText = i18n.GetString("TextYes"),
-                            SecondaryButtonText = i18n.GetString("TextNo"),
-                            DefaultButton = ContentDialogButton.Primary,
-                            XamlRoot = this.Content.XamlRoot,
-                        }.ShowAsyncQueue();
-                        if (result == ContentDialogResult.Primary)
-                        {
-                            await libraryVm.WallpaperDelete(obj);
-                        }
-                    }
+                    if (await dialogService.ShowDeleteWallpaperDialogAsync(obj))
+                        await libraryVm.WallpaperDelete(obj);
                     break;
                 case "customiseWallpaper":
-                    {
-                        _ = await new ContentDialog()
-                        {
-                            Title = obj.Title.Length > 35 ? obj.Title.Substring(0, 35) + "..." : obj.Title,
-                            Content = new LivelyPropertiesView(obj) { MinWidth = 325 },
-                            PrimaryButtonText = i18n.GetString("TextOk"),
-                            DefaultButton = ContentDialogButton.Primary,
-                            XamlRoot = this.Content.XamlRoot,
-                        }.ShowAsyncQueue();
-                    }
+                    await dialogService.ShowCustomiseWallpaperDialogAsync(obj);
                     break;
                 case "editWallpaper":
+                    var success = await desktopCore.EditWallpaper(obj.LivelyInfoFolderPath);
+                    if (success)
                     {
-                        obj.DataType = LibraryItemType.edit;
-                        libraryVm.LibraryItems.Move(libraryVm.LibraryItems.IndexOf((LibraryModel)obj), 0);
-                        await desktopCore.SetWallpaper(obj, userSettings.Settings.SelectedDisplay);
+                        libraryVm.RemoveWallpaper(obj);
+                        libraryVm.AddWallpaperFolder(obj.LivelyInfoFolderPath);
                     }
                     break;
                 case "moreInformation":
-                    {
-                        _ = await new ContentDialog()
-                        {
-                            Title = i18n.GetString("About/Label"),
-                            Content = new LibraryAboutView()
-                            {
-                                DataContext = new LibraryAboutViewModel(obj),
-                            },
-                            PrimaryButtonText = i18n.GetString("TextOK"),
-                            DefaultButton = ContentDialogButton.Primary,
-                            XamlRoot = this.Content.XamlRoot,
-                        }.ShowAsyncQueue();
-                    }
+                    await dialogService.ShowAboutWallpaperDialogAsync(obj);
                     break;
                 case "reportWallpaper":
-                    {
-                        _ = await new ContentDialog()
-                        {
-                            Title = i18n.GetString("TitleReportWallpaper/Text"),
-                            Content = new ReportWallpaperView()
-                            {
-                                DataContext = new ReportWallpaperViewModel(obj),
-                            },
-                            PrimaryButtonText = i18n.GetString("Send/Content"),
-                            SecondaryButtonText = i18n.GetString("Cancel/Content"),
-                            DefaultButton = ContentDialogButton.Primary,
-                            XamlRoot = this.Content.XamlRoot,
-                        }.ShowAsyncQueue();
-                    }
+                    await dialogService.ShowReportWallpaperDialogAsync(obj);
                     break;
             }
         }
 
-        private void libraryGridView_RightTapped(object sender, RightTappedRoutedEventArgs e)
+        private void GridView_RightTapped(object sender, RightTappedRoutedEventArgs e)
         {
             try
             {
                 var a = ((FrameworkElement)e.OriginalSource).DataContext;
                 selectedTile = (LibraryModel)a;
-                if (selectedTile.DataType == LibraryItemType.ready)
+                if (selectedTile.IsReadyToSet)
                 {
-                    GridView gridView = (GridView)sender;
-                    contextMenu.ShowAt(gridView, e.GetPosition(gridView));
+                    var item = sender as GridView;
+                    contextMenu.ShowAt(item, e.GetPosition(item));
                     customiseWallpaper.IsEnabled = selectedTile.LivelyPropertyPath != null;
                 }
             }
@@ -189,7 +122,7 @@ namespace Lively.UI.WinUI.Views.Pages
             {
                 var a = ((FrameworkElement)e.OriginalSource).DataContext;
                 selectedTile = (LibraryModel)a;
-                if (selectedTile.DataType == LibraryItemType.ready)
+                if (selectedTile.IsReadyToSet)
                 {
                     customiseWallpaper.IsEnabled = selectedTile.LivelyPropertyPath != null;
                     contextMenu.ShowAt((UIElement)e.OriginalSource, new Point(0, 0));
@@ -216,38 +149,13 @@ namespace Lively.UI.WinUI.Views.Pages
                 Logger.Info($"Dropped string {uri}");
                 try
                 {
-                    var libItem = libraryVm.AddWallpaperLink(uri);
-                    if (libItem.LivelyInfo.IsAbsolutePath)
-                    {
-                        libItem.DataType = LibraryItemType.processing;
-                        await desktopCore.SetWallpaper(libItem, userSettings.Settings.SelectedDisplay);
-                        /*
-                        var inputVm = new AddWallpaperDataViewModel(libItem);
-                        var inputDialog = new ContentDialog()
-                        {
-                            Title = i18n.GetString("AddWallpaper/Label"),
-                            Content = new AddWallpaperDataView(inputVm),
-                            PrimaryButtonText = i18n.GetString("TextOk"),
-                            SecondaryButtonText = i18n.GetString("Cancel/Content"),
-                            DefaultButton = ContentDialogButton.Primary,
-                            XamlRoot = this.Content.XamlRoot,
-                            SecondaryButtonCommand = inputVm.CancelCommand,
-                            PrimaryButtonCommand = inputVm.ProceedCommand,
-                        };
-                        await inputDialog.ShowAsyncQueue();
-                        */
-                    }
+                    await libraryVm.AddWallpaperLink(uri, true);
                 }
                 catch (Exception ie)
                 {
-                    await new ContentDialog()
-                    {
-                        Title = i18n.GetString("TextError"),
-                        Content = ie.Message,
-                        PrimaryButtonText = i18n.GetString("TextOk"),
-                        DefaultButton = ContentDialogButton.Primary,
-                        XamlRoot = this.Content.XamlRoot,
-                    }.ShowAsyncQueue();
+                    await dialogService.ShowDialogAsync(ie.Message,
+                        i18n.GetString("TextError"),
+                        i18n.GetString("TextOk"));
                 }
             }
             else if (e.DataView.Contains(StandardDataFormats.StorageItems))
@@ -278,9 +186,7 @@ namespace Lively.UI.WinUI.Views.Pages
                         {
                             case WallpaperCreateType.none:
                                 {
-                                    var result = await libraryVm.AddWallpaperFile(item);
-                                    if (result.DataType == LibraryItemType.processing)
-                                        await desktopCore.SetWallpaper(result, userSettings.Settings.SelectedDisplay);
+                                    await libraryVm.AddWallpaperFile(item, true);
                                 }
                                 break;
                             case WallpaperCreateType.depthmap:
@@ -294,19 +200,14 @@ namespace Lively.UI.WinUI.Views.Pages
                     }
                     catch (Exception ie)
                     {
-                        await new ContentDialog()
-                        {
-                            Title = i18n.GetString("TextError"),
-                            Content = ie.Message,
-                            PrimaryButtonText = i18n.GetString("TextOk"),
-                            DefaultButton = ContentDialogButton.Primary,
-                            XamlRoot = this.Content.XamlRoot,
-                        }.ShowAsyncQueue();
+                        await dialogService.ShowDialogAsync(ie.Message,
+                            i18n.GetString("TextError"),
+                            i18n.GetString("TextOk"));
                     }
                 }
                 else if (items.Count > 1)
                 {
-                    await App.Services.GetRequiredService<MainWindow>().AddWallpapers(items.Select(x => x.Path).ToList());
+                    await App.Services.GetRequiredService<MainViewModel>().AddWallpapers(items.Select(x => x.Path).ToList());
                 }
             }
         }

@@ -1,30 +1,38 @@
 ﻿using Lively.Common;
-using Lively.Common.Helpers.Files;
+using Lively.Common.Services;
 using Lively.Models;
-using Lively.UI.WinUI.ViewModels;
+using Lively.Models.Enums;
+using Lively.Models.Gallery.API;
+using Lively.UI.Shared.ViewModels;
+using Lively.UI.WinUI.Extensions;
+using Lively.UI.WinUI.Views.LivelyProperty;
 using Lively.UI.WinUI.Views.Pages;
 using Lively.UI.WinUI.Views.Pages.ControlPanel;
+using Lively.UI.WinUI.Views.Pages.Gallery;
+using Lively.UI.WinUI.Views.Pages.Settings;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using Windows.ApplicationModel.Resources;
-using WinUICommunity;
-using static Lively.UI.WinUI.Services.IDialogService;
 
 namespace Lively.UI.WinUI.Services
 {
     public class DialogService : IDialogService
     {
-        private readonly ResourceLoader i18n;
+        public bool IsWorking { get; private set; }
 
-        public DialogService()
+        private readonly IResourceService i18n;
+        private readonly IMainNavigator navigator;
+        private readonly IServiceScopeFactory scopeFactory;
+
+        public DialogService(IResourceService i18n, IMainNavigator navigator, IServiceScopeFactory scopeFactory)
         {
-            i18n = ResourceLoader.GetForViewIndependentUse();
+            this.i18n = i18n;
+            this.navigator = navigator;
+            this.scopeFactory = scopeFactory;
         }
 
         public async Task<DisplayMonitor> ShowDisplayChooseDialogAsync()
@@ -47,7 +55,7 @@ namespace Lively.UI.WinUI.Services
         public async Task<ApplicationModel> ShowApplicationPickerDialogAsync()
         {
             var vm = App.Services.GetRequiredService<FindMoreAppsViewModel>();
-            var result = await ShowDialogAsync(new Views.Pages.Settings.FindMoreAppsView() { DataContext = vm },
+            var result = await ShowDialogAsync(new FindMoreAppsView() { DataContext = vm },
                                           i18n.GetString("TitleChooseApplication/Text"),
                                           i18n.GetString("TextAdd"),
                                           i18n.GetString("Cancel/Content"));
@@ -59,7 +67,14 @@ namespace Lively.UI.WinUI.Services
             await new ContentDialog()
             {
                 Title = title,
-                Content = new TextBlock() { Text = message },
+                Content = new ScrollViewer()
+                {
+                    Content = new TextBlock()
+                    {
+                        Text = message,
+                        TextWrapping = TextWrapping.Wrap
+                    } 
+                },
                 PrimaryButtonText = primaryBtnText,
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
@@ -91,9 +106,15 @@ namespace Lively.UI.WinUI.Services
             };
         }
 
-        public async Task<string> ShowTextInputDialogAsync(string title)
+        public async Task<string> ShowTextInputDialogAsync(string title, string placeholderText)
         {
-            var tb = new TextBox();
+            var tb = new TextBox()
+            {
+                Height = 75,
+                Padding = new Thickness(10),
+                TextWrapping = TextWrapping.Wrap,
+                PlaceholderText = placeholderText
+            };
             var dialog = new ContentDialog
             {
                 Title = title,
@@ -115,6 +136,34 @@ namespace Lively.UI.WinUI.Services
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
             }.ShowAsyncQueue();
+        }
+
+        public async Task ShowCustomiseWallpaperDialogAsync(LibraryModel obj)
+        {
+            try
+            {
+                IsWorking = true;
+
+                var vm = App.Services.GetRequiredService<CustomiseWallpaperViewModel>();
+                var dialog = new ContentDialog()
+                {
+                    Title = obj.Title.Length > 35 ? obj.Title.Substring(0, 35) + "..." : obj.Title,
+                    Content = new LivelyPropertiesView(vm) { MinWidth = 325 },
+                    PrimaryButtonText = i18n.GetString("TextOk"),
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
+                };
+                dialog.Closing += (s, e) =>
+                {
+                    vm.OnClose();
+                };
+                vm.Load(obj);
+                await dialog.ShowAsyncQueue();
+            }
+            finally
+            {
+                IsWorking = false;
+            }
         }
 
         public async Task<LibraryModel> ShowDepthWallpaperDialogAsync(string imagePath)
@@ -152,13 +201,45 @@ namespace Lively.UI.WinUI.Services
             return vm.NewWallpaper;
         }
 
+        public async Task<(WallpaperAddType wallpaperType, List<string> wallpapers)> ShowAddWallpaperDialogAsync()
+        {
+            (WallpaperAddType, List<string>) result = (WallpaperAddType.none, null);
+            var addVm = App.Services.GetRequiredService<AddWallpaperViewModel>();
+            var addDialog = new ContentDialog()
+            {
+                Title = i18n.GetString("AddWallpaper/Label"),
+                Content = new AddWallpaperView(addVm),
+                PrimaryButtonText = i18n.GetString("TextOK"),
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
+            };
+
+            addVm.OnRequestAddUrl += (_, e) =>
+            {
+                result = (WallpaperAddType.url, new List<string>() { e });
+                addDialog.Hide();
+            };
+            addVm.OnRequestAddFile += (_, e) =>
+            {
+                result = (WallpaperAddType.files, e);
+                addDialog.Hide();
+            };
+            addVm.OnRequestOpenCreate += (_, _) =>
+            {
+                result = (WallpaperAddType.create, null);
+                addDialog.Hide();
+            };
+            await addDialog.ShowAsyncQueue();
+            return result;
+        }
+
         public async Task<WallpaperCreateType?> ShowWallpaperCreateDialogAsync(string filePath)
         {
             if (filePath is null)
                 return await InnerShowWallpaperCreateDialog(null);
 
             //For now only pictures..
-            var filter = FileFilter.GetLivelyFileType(filePath);
+            var filter = FileTypes.GetFileType(filePath);
             if (filter != WallpaperType.picture)
                 return WallpaperCreateType.none;
 
@@ -195,30 +276,90 @@ namespace Lively.UI.WinUI.Services
 
         public async Task ShowAboutDialogAsync()
         {
-            var vm = App.Services.GetRequiredService<AboutViewModel>();
             await new ContentDialog()
             {
                 Title = i18n.GetString("About/Label"),
-                Content = new AboutView(vm),
+                Content = new AboutView(),
                 PrimaryButtonText = i18n.GetString("TextOK"),
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
             }.ShowAsyncQueue();
-            vm.OnWindowClosing(this, new RoutedEventArgs());
+        }
+
+        public async Task ShowPatreonSupportersDialogAsync()
+        {
+            var page = new PatreonSupportersView();
+            var dlg = new ContentDialog()
+            {
+                Title = i18n.GetString("TitlePatreon/Text"),
+                Content = page,
+                PrimaryButtonText = i18n.GetString("TextBecomePatreonMember/Content"),
+                SecondaryButtonText = i18n.GetString("Cancel/Content"),
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
+            };
+            dlg.Resources["ContentDialogMinWidth"] = 640;
+
+            if (await dlg.ShowAsyncQueue() == ContentDialogResult.Primary)
+                LinkUtil.OpenBrowser("https://rocksdanister.github.io/lively/coffee/");
+
+            page.OnClose();
         }
 
         public async Task ShowControlPanelDialogAsync()
         {
-            var vm = App.Services.GetRequiredService<ControlPanelViewModel>();
-            await new ContentDialog()
+            var isDialogVisible = true;
+            using var scope = scopeFactory.CreateScope();
+            var viewModel = scope.ServiceProvider.GetRequiredService<ControlPanelViewModel>();
+            var dialogNavigator = scope.ServiceProvider.GetRequiredService<IDialogNavigator>();
+
+            var dialog = new ContentDialog()
             {
                 Title = i18n.GetString("DescriptionScreenLayout"),
-                Content = new ControlPanelView(vm),
+                Content = new ControlPanelView(viewModel, dialogNavigator),
                 PrimaryButtonText = i18n.GetString("TextOK"),
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
-            }.ShowAsyncQueue();
-            vm.OnWindowClosing(this, new RoutedEventArgs());
+            };
+            dialog.Closed += OnDialogClose;
+            viewModel.PropertyChanged += PropertyChanged;
+            await dialog.ShowAsyncQueue();
+
+            async void PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+            {
+                if (e.PropertyName == nameof(viewModel.IsHideDialog))
+                {
+                    if (viewModel.IsHideDialog)
+                    {
+                        isDialogVisible = false;
+                        dialog.Hide();
+                    }
+                    else
+                    {
+                        isDialogVisible = true;
+                        // Re-open the dialog
+                        await dialog.ShowAsyncQueue();
+                    }
+                }
+                else if (e.PropertyName == nameof(viewModel.IsShowScreensaverSettings))
+                {
+                    dialog.Hide();
+                    navigator.NavigateTo(ContentPageType.settingsScreensaver);
+                }
+            }
+
+            void OnDialogClose(object sender, ContentDialogClosedEventArgs args)
+            {
+                if (isDialogVisible)
+                    OnWindowClose();
+            }
+
+            void OnWindowClose()
+            {
+                viewModel.OnWindowClosing(this, EventArgs.Empty);
+                viewModel.PropertyChanged -= PropertyChanged;
+                dialog.Closed -= OnDialogClose;
+            }
         }
 
         public async Task ShowHelpDialogAsync()
@@ -231,6 +372,122 @@ namespace Lively.UI.WinUI.Services
                 DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
             }.ShowAsyncQueue();
+        }
+
+        public async Task ShowShareWallpaperDialogAsync(LibraryModel obj)
+        {
+            var vm = App.Services.GetRequiredService<ShareWallpaperViewModel>();
+            vm.Model = obj;
+            await new ContentDialog()
+            {
+                Title = i18n.GetString("TitleShareWallpaper/Text"),
+                Content = new ShareWallpaperView()
+                {
+                    DataContext = vm,
+                },
+                PrimaryButtonText = i18n.GetString("TextOK"),
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
+            }.ShowAsyncQueue();
+        }
+
+        public async Task ShowAboutWallpaperDialogAsync(LibraryModel obj)
+        {
+            await new ContentDialog()
+            {
+                Title = i18n.GetString("About/Label"),
+                Content = new LibraryAboutView()
+                {
+                    DataContext = new LibraryAboutViewModel(obj),
+                },
+                PrimaryButtonText = i18n.GetString("TextOK"),
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
+            }.ShowAsyncQueue();
+        }
+
+        public async Task<bool> ShowDeleteWallpaperDialogAsync(LibraryModel obj)
+        {
+            return await new ContentDialog()
+            {
+                Title = obj.LivelyInfo.IsAbsolutePath ?
+                i18n.GetString("DescriptionDeleteConfirmationLibrary") : i18n.GetString("DescriptionDeleteConfirmation"),
+                Content = new LibraryAboutView() { DataContext = new LibraryAboutViewModel(obj) },
+                PrimaryButtonText = i18n.GetString("TextYes"),
+                SecondaryButtonText = i18n.GetString("TextNo"),
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
+            }.ShowAsyncQueue() == ContentDialogResult.Primary;
+        }
+
+        public async Task ShowReportWallpaperDialogAsync(LibraryModel obj)
+        {
+            await new ContentDialog()
+            {
+                Title = i18n.GetString("TitleReportWallpaper/Text"),
+                Content = new ReportWallpaperView()
+                {
+                    DataContext = new ReportWallpaperViewModel(obj),
+                },
+                PrimaryButtonText = i18n.GetString("Send/Content"),
+                SecondaryButtonText = i18n.GetString("Cancel/Content"),
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
+            }.ShowAsyncQueue();
+        }
+
+        public async Task<IEnumerable<GalleryModel>> ShowGalleryRestoreWallpaperDialogAsync(IEnumerable<WallpaperDto> wallpapers)
+        {
+            if (!wallpapers.Any())
+                return null;
+
+            var vm = App.Services.GetRequiredService<RestoreWallpaperViewModel>();
+            foreach (var item in wallpapers)
+                vm.Wallpapers.Add(new GalleryModel(item, false) { IsSelected = true });
+
+            var result = await ShowDialogAsync(
+                new RestoreWallpaperView(vm),
+                i18n.GetString("TitleWelcomeback/Text"),
+                i18n.GetString("TextDownloadNow/Content"),
+                i18n.GetString("TextMaybeLater/Content"));
+
+            return result == DialogResult.primary ? vm.SelectedItems : null;
+        }
+
+        public async Task ShowGalleryEditProfileDialogAsync()
+        {
+            await new ContentDialog()
+            {
+                Title = "Account",
+                Content = new ManageAccountView(),
+                PrimaryButtonText = i18n.GetString("TextOK"),
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
+            }.ShowAsyncQueue();
+        }
+
+        public async Task ShowWaitDialogAsync(object content, int seconds)
+        {
+            var dlg = new ContentDialog()
+            {
+                Title = i18n.GetString("PleaseWait/Text"),
+                Content = content,
+                PrimaryButtonText = $"{seconds}s",
+                IsPrimaryButtonEnabled = false,
+                DefaultButton = ContentDialogButton.Primary,
+                XamlRoot = App.Services.GetRequiredService<MainWindow>().Content.XamlRoot,
+            };
+            dlg.Opened += async (s, e) =>
+            {
+                for (int i = seconds; i > 0; i--)
+                {
+                    dlg.PrimaryButtonText = $"{i}s";
+                    await Task.Delay(1000);
+                }
+                dlg.PrimaryButtonText = i18n.GetString("TextOK");
+                dlg.IsPrimaryButtonEnabled = true;
+            };
+            await dlg.ShowAsyncQueue();
         }
     }
 }

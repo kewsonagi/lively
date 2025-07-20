@@ -1,15 +1,13 @@
-﻿using System;
-using System.Linq;
-using System.Runtime.InteropServices;
-using System.Windows;
-using System.Windows.Interop;
-using Linearstar.Windows.RawInput;
-using Lively.Common;
+﻿using Linearstar.Windows.RawInput;
 using Lively.Common.Helpers.Pinvoke;
+using Lively.Common.Services;
 using Lively.Core;
 using Lively.Core.Display;
 using Lively.Models;
-using Lively.Services;
+using Lively.Models.Enums;
+using System;
+using System.Windows;
+using System.Windows.Interop;
 using Point = System.Drawing.Point;
 
 namespace Lively.Views.WindowMsg
@@ -95,6 +93,14 @@ namespace Lively.Views.WindowMsg
                     workerWOrig = NativeMethods.FindWindowEx(NativeMethods.GetDesktopWindow(), workerWOrig, "WorkerW", null);
                     folderView = NativeMethods.FindWindowEx(workerWOrig, IntPtr.Zero, "SHELLDLL_DefView", null);
                 } while (folderView == IntPtr.Zero && workerWOrig != IntPtr.Zero);
+            }
+
+            if (workerWOrig == IntPtr.Zero)
+            {
+                workerWOrig = NativeMethods.FindWindowEx(progman,
+                                                IntPtr.Zero,
+                                                "WorkerW",
+                                                IntPtr.Zero);
             }
             Logger.Info("Desktop handles updated.");
         }

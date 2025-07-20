@@ -1,35 +1,42 @@
-﻿using Lively.UI.WinUI.ViewModels;
+﻿using Lively.UI.Shared.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
+using System.Threading.Tasks;
 using Windows.Foundation;
-using Windows.Foundation.Collections;
-
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
 
 namespace Lively.UI.WinUI.Views.Pages.Settings
 {
-    /// <summary>
-    /// An empty page that can be used on its own or navigated to within a Frame.
-    /// </summary>
     public sealed partial class SettingsWallpaperView : Page
     {
+        private readonly SettingsWallpaperViewModel viewModel;
+
         public SettingsWallpaperView()
         {
             this.InitializeComponent();
-            this.DataContext = App.Services.GetRequiredService<SettingsViewModel>();
+            viewModel = App.Services.GetRequiredService<SettingsWallpaperViewModel>();
+            this.DataContext = viewModel;
 
+            viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        }
+
+        private async void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(SettingsWallpaperViewModel.IsAppMusicExclusionRuleChanged) && viewModel.IsAppMusicExclusionRuleChanged)
+            {
+                // Delay for the infobar show animation
+                await Task.Delay(500);
+                ScrollElementIntoView(musicWallpaperRestartNotify);
+            }
+        }
+
+        public void ScrollElementIntoView(UIElement element)
+        {
+            var transform = element.TransformToVisual(scrollViewer.Content as UIElement);
+            var elementBounds = transform.TransformBounds(new (new Point(0, 0), element.RenderSize));
+
+            scrollViewer.ChangeView(0, elementBounds.Top, null);
         }
     }
 }

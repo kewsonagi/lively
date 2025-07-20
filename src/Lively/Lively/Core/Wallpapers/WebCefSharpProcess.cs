@@ -1,17 +1,18 @@
 ﻿using Lively.Common;
-using Lively.Common.API;
+using Lively.Common.Extensions;
 using Lively.Common.Helpers;
 using Lively.Common.Helpers.Pinvoke;
 using Lively.Common.Helpers.Shell;
+using Lively.Common.JsonConverters;
 using Lively.Models;
+using Lively.Models.Enums;
+using Lively.Models.Message;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
-using Lively.Common.Extensions;
 
 namespace Lively.Core.Wallpapers
 {
@@ -23,6 +24,8 @@ namespace Lively.Core.Wallpapers
         private bool isInitialized;
         private static int globalCount;
         private readonly int uniqueId;
+
+        public event EventHandler Exited;
 
         public bool IsLoaded { get; private set; } = false;
 
@@ -50,37 +53,38 @@ namespace Lively.Core.Wallpapers
             bool diskCache,
             int volume)
         {
-            //Streams can also use browser..
-            //TODO: Add support for livelyproperty video adjustments.
+            //Streams can also use browser.
             var isWeb = model.LivelyInfo.Type == WallpaperType.url || model.LivelyInfo.Type == WallpaperType.web || model.LivelyInfo.Type == WallpaperType.webaudio;
             LivelyPropertyCopyPath = isWeb ? livelyPropertyPath : null;
 
-            StringBuilder cmdArgs = new StringBuilder();
-            cmdArgs.Append(" --url " + "\"" + path + "\"");
-            cmdArgs.Append(" --display " + "\"" + display.DeviceId + "\"");
-            cmdArgs.Append(" --property " + "\"" + LivelyPropertyCopyPath + "\"");
-            //volume == 0, Cef is permanently muted and cannot be adjusted runtime
-            cmdArgs.Append(" --volume " + 100);
-            cmdArgs.Append(" --geometry " + display.Bounds.Width + "x" + display.Bounds.Height);
+            var cmdArgs = new StringBuilder();
+            cmdArgs.Append(" --wallpaper-url " + "\"" + path + "\"");
+            cmdArgs.Append(" --wallpaper-display " + "\"" + display.DeviceId + "\"");
+            cmdArgs.Append(" --wallpaper-property " + "\"" + LivelyPropertyCopyPath + "\"");
+            cmdArgs.Append(" --wallpaper-volume " + volume);
+            cmdArgs.Append(" --wallpaper-geometry " + display.Bounds.Width + "x" + display.Bounds.Height);
             //--audio false Issue: https://github.com/commandlineparser/commandline/issues/702
-            cmdArgs.Append(model.LivelyInfo.Type == WallpaperType.webaudio ? " --audio true" : " ");
-            cmdArgs.Append(!string.IsNullOrWhiteSpace(model.LivelyInfo.Arguments) ? " " + model.LivelyInfo.Arguments : " ");
-            cmdArgs.Append(!string.IsNullOrWhiteSpace(debugPort) ? " --debug " + debugPort : " ");
-            cmdArgs.Append(model.LivelyInfo.Type == WallpaperType.url || model.LivelyInfo.Type == WallpaperType.videostream ? " --type online" : " --type local");
-            cmdArgs.Append(diskCache && model.LivelyInfo.Type == WallpaperType.url ? " --cache " + "\"" + Path.Combine(Constants.CommonPaths.TempCefDir, "cache", display.Index.ToString()) + "\"" : " ");
+            cmdArgs.Append(model.LivelyInfo.Type == WallpaperType.webaudio ? " --wallpaper-audio true" : " ");
+            cmdArgs.Append(!string.IsNullOrWhiteSpace(debugPort) ? " --wallpaper-debug " + debugPort : " ");
+            cmdArgs.Append(model.LivelyInfo.Type == WallpaperType.url || model.LivelyInfo.Type == WallpaperType.videostream ? " --wallpaper-type online" : " --wallpaper-type local");
+            cmdArgs.Append(diskCache && model.LivelyInfo.Type == WallpaperType.url ? " --wallpaper-cache " + "\"" + Path.Combine(Constants.CommonPaths.TempCefDir, "Lively.PlayerCefSharp", display.Index.ToString()) + "\"" : " ");
+            if (TryParseUserCommandArgs(model.LivelyInfo.Arguments, out string parsedArgs))
+                cmdArgs.Append(" " + parsedArgs);
 #if DEBUG
             //cmdArgs.Append(" --verbose-log true"); 
 #endif
-        
+
             ProcessStartInfo start = new ProcessStartInfo
             {
                 Arguments = cmdArgs.ToString(),
-                FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "cef", "Lively.PlayerCefSharp.exe"),
+                FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Constants.PlayerPartialPaths.CefSharpPath),
                 RedirectStandardInput = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = false,
                 UseShellExecute = false,
-                WorkingDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "cef")
+                StandardInputEncoding = Encoding.UTF8,
+                //StandardOutputEncoding = Encoding.UTF8,
+                WorkingDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Constants.PlayerPartialPaths.CefSharpDir)
             };
 
             Process webProcess = new Process
@@ -96,7 +100,7 @@ namespace Lively.Core.Wallpapers
             //for logging purpose
             uniqueId = globalCount++;
         }
-
+        
         public void Pause()
         {
             //minimize browser.
@@ -154,8 +158,8 @@ namespace Lively.Core.Wallpapers
             }
             Proc.OutputDataReceived -= Proc_OutputDataReceived;
             Proc?.Dispose();
-            DesktopUtil.RefreshDesktop();
             IsExited = true;
+            Exited?.Invoke(this, EventArgs.Empty);
         }
 
         private void Proc_OutputDataReceived(object sender, DataReceivedEventArgs e)
@@ -185,7 +189,7 @@ namespace Lively.Core.Wallpapers
                             //CefBrowserWindow
                             var handle = new IntPtr(((LivelyMessageHwnd)obj).Hwnd);
                             //WindowsForms10.Window.8.app.0.141b42a_r9_ad1
-                            InputHandle = NativeMethods.FindWindowEx(handle, IntPtr.Zero, "Chrome_WidgetWin_0", null);
+                            InputHandle = NativeMethods.FindWindowEx(handle, IntPtr.Zero, "Chrome_WidgetWin_1", null);
                             Handle = Proc.GetProcessWindow(true);//FindWindowByProcessId(Proc.Id);
 
                             if (IntPtr.Equals(InputHandle, IntPtr.Zero) || IntPtr.Equals(Handle, IntPtr.Zero))
@@ -216,16 +220,15 @@ namespace Lively.Core.Wallpapers
             }
         }
 
-        public void Stop()
-        {
-            Pause();
-        }
-
         private void SendMessage(string msg)
         {
             try
             {
+                // Setting process StandardInputEncoding to UTF8.
                 Proc?.StandardInput.WriteLine(msg);
+                // Or convert message to UTF8.
+                //byte[] bytes = Encoding.UTF8.GetBytes(msg);
+                //Proc.StandardInput.BaseStream.Write(bytes, 0, bytes.Length);
             }
             catch (Exception e)
             {
@@ -245,7 +248,6 @@ namespace Lively.Core.Wallpapers
                 Proc.Kill();
             }
             catch { }
-            DesktopUtil.RefreshDesktop();
         }
 
         public void Close()
@@ -327,6 +329,29 @@ namespace Lively.Core.Wallpapers
             {
                 Proc.OutputDataReceived -= OutputDataReceived;
             }
+        }
+
+        /// <summary>
+        /// Backward compatibility, appends --wallpaper to arguments if required.
+        /// </summary>
+        private static bool TryParseUserCommandArgs(string args, out string result)
+        {
+            if (string.IsNullOrWhiteSpace(args))
+            {
+                result = null;
+                return false;
+            }
+
+            var words = args.Split(' ');
+            for (int i = 0; i < words.Length; i++)
+            {
+                if (words[i].StartsWith("--"))
+                {
+                    words[i] = string.Concat("--wallpaper-", words[i].AsSpan(2));
+                }
+            }
+            result = string.Join(" ", words);
+            return true;
         }
     }
 }

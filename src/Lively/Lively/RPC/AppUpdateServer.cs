@@ -1,13 +1,12 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Lively.Common.Models;
-using Lively.Common.Services.Update;
+using Lively.Common;
+using Lively.Common.Services;
 using Lively.Grpc.Common.Proto.Update;
+using Lively.Models.Services;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Reflection;
-using System.Text;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -27,7 +26,10 @@ namespace Lively.RPC
 
         public override async Task<Empty> CheckUpdate(Empty _, ServerCallContext context)
         {
+#if !DEBUG
             await updater.CheckUpdate(0);
+#endif
+            Debug.WriteLine("App Update checking disabled in DEBUG mode.");
             return await Task.FromResult(new Empty());
         }
 
@@ -35,10 +37,33 @@ namespace Lively.RPC
         {
             if (updater.Status == AppUpdateStatus.available)
             {
-                Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new ThreadStart(delegate
+                try
                 {
-                    App.AppUpdateDialog(updater.LastCheckUri, updater.LastCheckChangelog);
-                }));
+                    try
+                    {
+                        // Main user interface downloads the setup.
+                        var fileName = updater.LastCheckFileName;
+                        var filePath = Path.Combine(Constants.CommonPaths.TempDir, fileName);
+                        if (!File.Exists(filePath))
+                            throw new FileNotFoundException(filePath);
+
+                        // Run setup in silent mode.
+                        Process.Start(filePath, "/SILENT /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS");
+                        // Inno installer will auto retry, waiting for application exit.
+                        App.QuitApp();
+                    }
+                    catch (Exception ex)
+                    {
+                        Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new ThreadStart(delegate
+                        {
+                            MessageBox.Show($"{Properties.Resources.LivelyExceptionAppUpdateFail}\n\nException:\n{ex}", Properties.Resources.TextError, MessageBoxButton.OK, MessageBoxImage.Error);
+                        }));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex);
+                }
             }
             return Task.FromResult(new Empty());
         }
@@ -48,8 +73,9 @@ namespace Lively.RPC
             return Task.FromResult(new UpdateResponse()
             {
                 Status = (UpdateStatus)((int)updater.Status),
-                Changelog = updater.LastCheckChangelog ?? string.Empty,
+                Changelog = string.Empty,
                 Url = updater.LastCheckUri?.OriginalString ?? string.Empty,
+                FileName = updater.LastCheckFileName ?? string.Empty,
                 Version = updater.LastCheckVersion?.ToString() ?? string.Empty,
                 Time = Timestamp.FromDateTime(updater.LastCheckTime.ToUniversalTime()),
             });

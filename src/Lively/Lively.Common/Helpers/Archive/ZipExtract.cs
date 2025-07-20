@@ -74,33 +74,6 @@ namespace Lively.Common.Helpers.Archive
         }
 
         /// <summary>
-        /// Verify whether the archive is lively wallpaper format.
-        /// </summary>
-        /// <param name="archivePath">Path to .zip file.</param>
-        /// <returns></returns>
-        public static bool IsLivelyZip(string archivePath)
-        {
-            bool result = true;
-            try
-            {
-                using (Stream fsInput = File.OpenRead(archivePath))
-                using (var zf = new ZipFile(fsInput))
-                {
-
-                    if (zf.FindEntry("LivelyInfo.json", true) == -1)
-                    {
-                        result = false;
-                    }
-                }
-            }
-            catch
-            {
-                result = false;
-            }
-            return result;
-        }
-
-        /// <summary>
         /// Extract zip files in filename order: 0.zip, 1.zip ...
         /// </summary>
         /// <param name="currentBundleVer">filename to start from</param>

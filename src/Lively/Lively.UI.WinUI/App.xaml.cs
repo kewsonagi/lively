@@ -1,34 +1,26 @@
 ﻿using CommandLine;
+using Lively.Common.Factories;
 using Lively.Common.Helpers;
-using Lively.Common.Helpers.Archive;
 using Lively.Common.Helpers.Pinvoke;
+using Lively.Common.Services;
 using Lively.Gallery.Client;
 using Lively.Grpc.Client;
 using Lively.ML.DepthEstimate;
-using Lively.Models;
+using Lively.Models.Enums;
+using Lively.UI.Shared.ViewModels;
 using Lively.UI.WinUI.Factories;
-using Lively.UI.WinUI.Helpers;
 using Lively.UI.WinUI.Services;
-using Lively.UI.WinUI.ViewModels;
 using Lively.UI.WinUI.Views.LivelyProperty;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
-using System.Threading;
 using System.Threading.Tasks;
-using Windows.ApplicationModel.Resources.Core;
-using Windows.Globalization;
 using WinUIEx;
-using Lively.Common.Factories;
 using static Lively.Common.Constants;
-using Lively.Common.Services.Downloader;
-using Lively.Helpers;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -63,7 +55,7 @@ namespace Lively.UI.WinUI
         /// </summary>
         public App()
         {
-            if (!SingleInstanceUtil.IsAppMutexRunning(SingleInstance.UniqueAppName))
+            if (!AppLifeCycleUtil.IsAppMutexRunning(SingleInstance.UniqueAppName))
             {
                 _ = NativeMethods.MessageBox(IntPtr.Zero, "Wallpaper core is not running, run Lively.exe first before opening UI.", "Lively Wallpaper", 16);
                 //Sad dev noises.. this.Exit() does not work without Window: https://github.com/microsoft/microsoft-ui-xaml/issues/5931
@@ -74,7 +66,6 @@ namespace Lively.UI.WinUI
             _serviceProvider = ConfigureServices();
             var userSettings = Services.GetRequiredService<IUserSettingsClient>();
             SetAppTheme(userSettings.Settings.ApplicationTheme);
-            //SetAppLanguage(userSettings.Settings.Language);
             //Services.GetRequiredService<SettingsViewModel>().AppThemeChanged += (s, e) => SetAppTheme(e);
 
             SetupUnhandledExceptionLogging();
@@ -105,17 +96,27 @@ namespace Lively.UI.WinUI
                         {
                             var libraryVm = Services.GetRequiredService<LibraryViewModel>();
                             var model = libraryVm.LibraryItems.FirstOrDefault(x => selection.LivelyInfoFolderPath == x.LivelyInfoFolderPath);
+                            var viewModel = App.Services.GetRequiredService<CustomiseWallpaperViewModel>();
                             if (model is not null)
                             {
-                                var tray = new LivelyPropertiesTray(model);
-                                tray.Closed += (s, e) =>
+                                var window = new LivelyPropertiesTray(viewModel);
+                                window.Title = model.Title;
+                                window.Closed += (s, e) =>
                                 {
+                                    viewModel.OnClose();
                                     App.ShutDown();
                                 };
-                                tray.Show();
+                                viewModel.Load(model);
+                                window.Show();
                             }
                         }
                     }
+                }
+                else if (StartFlags.AppUpdate)
+                {
+                    var m_window = Services.GetRequiredService<MainWindow>();
+                    m_window.Activate();
+                    Services.GetRequiredService<IMainNavigator>().NavigateTo(ContentPageType.appupdate);
                 }
                 else
                 {
@@ -132,29 +133,38 @@ namespace Lively.UI.WinUI
         private IServiceProvider ConfigureServices()
         {
             var provider = new ServiceCollection()
-                //singleton
+                // Singleton
                 .AddSingleton<IDesktopCoreClient, WinDesktopCoreClient>()
                 .AddSingleton<IUserSettingsClient, UserSettingsClient>()
                 .AddSingleton<IDisplayManagerClient, DisplayManagerClient>()
                 .AddSingleton<ICommandsClient, CommandsClient>()
                 .AddSingleton<IAppUpdaterClient, AppUpdaterClient>()
+                .AddSingleton<IDialogService, DialogService>()
+                .AddSingleton<IDispatcherService, DispatcherService>()
+                .AddSingleton<IResourceService, ResourceService>()
+                .AddSingleton<IMainNavigator, MainNavigator>()
                 .AddSingleton<MainWindow>()
                 .AddSingleton<MainViewModel>()
                 .AddSingleton<GalleryClient>((e) => new GalleryClient(e.GetRequiredService<IHttpClientFactory>(), "http://api.livelywallpaper.net/api/",
                     "https://accounts.google.com/o/oauth2/auth/oauthchooseaccount?client_id=923081992071-qg27j4uhasb3r4lasb9cb19nbhvgbb34.apps.googleusercontent.com&redirect_uri=http://127.0.0.1:43821/signin-oidc&scope=email%20openid%20profile&response_type=code&state=asdafwswdwefwsdg&flowName=GeneralOAuthFlow",
                     "https://github.com/login/oauth/authorize?client_id=bbfd46fbb54895ecee74&redirect_uri=http://127.0.0.1:43821/signin-oidc-github&scope=user:email",
                     new JsonTokenStore()))
-                .AddSingleton<LibraryViewModel>() //Library items are stored..
+                .AddSingleton<LibraryViewModel>() //Storing and tracking library items.
                 .AddSingleton<GalleryViewModel>()
                 .AddSingleton<GallerySubscriptionViewModel>()
-                .AddSingleton<SettingsViewModel>() //Some events..
+                .AddSingleton<AppUpdateViewModel>()
                 .AddSingleton<ICacheService, DiskCacheService>((e) => new DiskCacheService(e.GetRequiredService<IHttpClientFactory>(), Path.Combine(Path.GetTempPath(), "Lively Wallpaper", "gallery")))
                 .AddSingleton<IDepthEstimate, MiDaS>()
-                //transient
-                //.AddTransient<HelpViewModel>()
+                // Scoped
+                .AddScoped<IDialogNavigator, DialogNavigator>()
+                // Transient
                 .AddTransient<AboutViewModel>()
+                .AddTransient<CustomiseWallpaperViewModel>()
+                .AddTransient<PatreonSupportersViewModel>()
                 .AddTransient<AddWallpaperViewModel>()
                 .AddTransient<ControlPanelViewModel>()
+                .AddTransient<ScreensaverLayoutViewModel>()
+                .AddTransient<WallpaperLayoutViewModel>()
                 .AddTransient<ChooseDisplayViewModel>()
                 .AddTransient<FindMoreAppsViewModel>()
                 .AddTransient<AppThemeViewModel>()
@@ -163,12 +173,19 @@ namespace Lively.UI.WinUI
                 .AddTransient<RestoreWallpaperViewModel>()
                 .AddTransient<AddWallpaperCreateViewModel>()
                 .AddTransient<DepthEstimateWallpaperViewModel>()
-                .AddTransient<IDialogService, DialogService>()
+                .AddTransient<SettingsGeneralViewModel>()
+                .AddTransient<SettingsPerformanceViewModel>()
+                .AddTransient<SettingsWallpaperViewModel>()
+                .AddTransient<SettingsScreensaverViewModel>()
+                .AddTransient<SettingsSystemViewModel>()
+                .AddTransient<ShareWallpaperViewModel>()
+                .AddTransient<AddWallpaperDataViewModel>()
+                .AddTransient<IFileService, FileService>()
                 .AddTransient<IApplicationsFactory, ApplicationsFactory>()
                 .AddTransient<IApplicationsRulesFactory, ApplicationsRulesFactory>()
                 .AddTransient<IWallpaperLibraryFactory, WallpaperLibraryFactory>()
                 .AddTransient<IAppThemeFactory, AppThemeFactory>()
-                .AddTransient<IDownloadService, SimpleDownloadService>()
+                .AddTransient<IDownloadService, HttpDownloadService>()
                 //https://docs.microsoft.com/en-us/dotnet/architecture/microservices/implement-resilient-applications/use-httpclientfactory-to-implement-resilient-http-requests
                 .AddHttpClient()
                 .BuildServiceProvider();
@@ -178,36 +195,20 @@ namespace Lively.UI.WinUI
 
         //Cannot change runtime.
         //Issue: https://github.com/microsoft/microsoft-ui-xaml/issues/4474
-        private void SetAppTheme(Common.AppTheme theme)
+        private void SetAppTheme(Models.Enums.AppTheme theme)
         {
             switch (theme)
             {
-                case Common.AppTheme.Auto:
+                case Models.Enums.AppTheme.Auto:
                     //Nothing
                     break;
-                case Common.AppTheme.Light:
+                case Models.Enums.AppTheme.Light:
                     this.RequestedTheme = ApplicationTheme.Light;
                     break;
-                case Common.AppTheme.Dark:
+                case Models.Enums.AppTheme.Dark:
                     this.RequestedTheme = ApplicationTheme.Dark;
                     break;
             }
-        }
-
-        //Cannot set custom language on unpackaged, issues:
-        //https://github.com/microsoft/microsoft-ui-xaml/issues/5940
-        //https://github.com/microsoft/WindowsAppSDK/issues/1687
-        //https://github.com/microsoft/WindowsAppSDK-Samples/issues/138
-        private void SetAppLanguage(string cult = "en-US")
-        {
-            ApplicationLanguages.PrimaryLanguageOverride = cult;
-            CultureInfo culture = new CultureInfo(cult);
-            CultureInfo.DefaultThreadCurrentCulture = culture;
-            CultureInfo.CurrentCulture = culture;
-            Thread.CurrentThread.CurrentCulture = culture;
-            Thread.CurrentThread.CurrentUICulture = culture;
-            //ResourceContext.GetForCurrentView().Reset();
-            ResourceContext.GetForViewIndependentUse().Reset();
         }
 
         //Not working ugh..

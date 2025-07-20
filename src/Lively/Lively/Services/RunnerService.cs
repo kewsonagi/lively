@@ -1,13 +1,12 @@
 ﻿using Lively.Common;
 using Lively.Common.Helpers.Pinvoke;
+using Lively.Common.Services;
 using Lively.Core.Display;
 using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Security.Principal;
-using System.Threading.Tasks;
 using System.Windows;
 using UAC = UACHelper.UACHelper;
 
@@ -47,11 +46,113 @@ namespace Lively.Services
 
         public void ShowUI()
         {
+            ShowUI(null, "WM SHOW");
+        }
+
+        public void ShowAppUpdatePage()
+        {
+            ShowUI("--appUpdate true", "LM SHOWAPPUPDATEPAGE");
+        }
+
+        public void ShowCustomisWallpaperePanel()
+        {
+            // We want a simpler impl here since this has only one specific use.
+            if (processUI is null)
+            {
+                try
+                {
+                    var proc = new Process
+                    {
+                        StartInfo = new ProcessStartInfo
+                        {
+                            FileName = fileName,
+                            UseShellExecute = false,
+                            Arguments = "--trayWidget true",
+                            WorkingDirectory = workingDirectory,
+                        },
+                    };
+                    proc.Start();
+                }
+                catch (Exception e)
+                {
+                    Logger.Error(e);
+                }
+            }
+            else
+            {
+                processUI?.StandardInput.WriteLine("LM SHOWCUSTOMISEPANEL");
+            }
+        }
+
+        public void RestartUI(string startArgs = null)
+        {
             if (processUI != null)
             {
                 try
                 {
-                    processUI.StandardInput.WriteLine("WM SHOW");
+                    processUI.Exited -= Proc_UI_Exited;
+                    processUI.OutputDataReceived -= Proc_OutputDataReceived;
+                    NativeMethods.GetWindowRect(processUI.MainWindowHandle, out prevWindowRect);
+                    if (!processUI.Responding || !processUI.CloseMainWindow() || !processUI.WaitForExit(500))
+                    {
+                        processUI.Kill();
+                    }
+                    processUI.Dispose();
+                }
+                catch (Exception e)
+                {
+                    Logger.Error(e);
+                }
+                finally
+                {
+                    processUI = null;
+                }
+            }
+            ShowUI(startArgs, null);
+        }
+
+        public void CloseUI()
+        {
+            if (processUI == null)
+                return;
+
+            try
+            {
+                NativeMethods.GetWindowRect(processUI.MainWindowHandle, out prevWindowRect);
+                if (!processUI.Responding || !processUI.CloseMainWindow() || !processUI.WaitForExit(3500))
+                {
+                    processUI.Kill();
+                }
+            }
+            catch (Exception e)
+            {
+                Logger.Error(e);
+            }
+        }
+
+        public void SaveRectUI()
+        {
+            if (processUI == null)
+                return;
+
+            NativeMethods.GetWindowRect(processUI.MainWindowHandle, out prevWindowRect);
+        }
+
+        public void SetBusyUI(bool isBusy) => processUI?.StandardInput.WriteLine(isBusy ? "LM SHOWBUSY" : "LM HIDEBUSY");
+
+        public IntPtr HwndUI => processUI?.MainWindowHandle ?? IntPtr.Zero;
+
+        public bool IsVisibleUI =>
+            processUI != null && NativeMethods.IsWindowVisible(processUI.MainWindowHandle);
+
+        private void ShowUI(string startArgs, string wmArgs)
+        {
+            if (processUI != null)
+            {
+                try
+                {
+                    if (wmArgs != null)
+                        processUI.StandardInput.WriteLine(wmArgs);
                 }
                 catch (Exception e)
                 {
@@ -71,6 +172,7 @@ namespace Lively.Services
                             RedirectStandardOutput = false,
                             RedirectStandardError = false,
                             UseShellExecute = false,
+                            Arguments = startArgs ?? string.Empty,
                             WorkingDirectory = workingDirectory,
                         },
                         EnableRaisingEvents = true
@@ -106,96 +208,6 @@ namespace Lively.Services
                 _isFirstRun = false;
             }
         }
-
-        public void RestartUI()
-        {
-            if (processUI != null)
-            {
-                try
-                {
-                    processUI.Exited -= Proc_UI_Exited;
-                    processUI.OutputDataReceived -= Proc_OutputDataReceived;
-                    NativeMethods.GetWindowRect(processUI.MainWindowHandle, out prevWindowRect);
-                    if (!processUI.Responding || !processUI.CloseMainWindow() || !processUI.WaitForExit(500))
-                    {
-                        processUI.Kill();
-                    }
-                    processUI.Dispose();
-                }
-                catch (Exception e)
-                {
-                    Logger.Error(e);
-                }
-                finally
-                {
-                    processUI = null;
-                }
-            }
-            ShowUI();
-        }
-
-        public void CloseUI()
-        {
-            if (processUI == null)
-                return;
-
-            try
-            {
-                NativeMethods.GetWindowRect(processUI.MainWindowHandle, out prevWindowRect);
-                if (!processUI.Responding || !processUI.CloseMainWindow() || !processUI.WaitForExit(3500))
-                {
-                    processUI.Kill();
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Error(e);
-            }
-        }
-
-        public void SaveRectUI()
-        {
-            if (processUI == null)
-                return;
-
-            NativeMethods.GetWindowRect(processUI.MainWindowHandle, out prevWindowRect);
-        }
-
-        public void ShowCustomisWallpaperePanel()
-        {
-            if (processUI is null)
-            {
-                try
-                {
-                    var proc = new Process
-                    {
-                        StartInfo = new ProcessStartInfo
-                        {
-                            FileName = fileName,
-                            UseShellExecute = false,
-                            Arguments ="--trayWidget true",
-                            WorkingDirectory = workingDirectory,
-                        },
-                    };
-                    proc.Start();
-                }
-                catch (Exception e)
-                {
-                    Logger.Error(e);
-                }
-            }
-            else
-            {
-                processUI?.StandardInput.WriteLine("LM SHOWCUSTOMISEPANEL");
-            }
-        }
-
-        public void SetBusyUI(bool isBusy) => processUI?.StandardInput.WriteLine(isBusy ? "LM SHOWBUSY" : "LM HIDEBUSY");
-
-        public IntPtr HwndUI => processUI?.MainWindowHandle ?? IntPtr.Zero;
-
-        public bool IsVisibleUI =>
-            processUI != null && NativeMethods.IsWindowVisible(processUI.MainWindowHandle);
 
         private void Proc_OutputDataReceived(object sender, DataReceivedEventArgs e)
         {

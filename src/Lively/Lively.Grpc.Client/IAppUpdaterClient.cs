@@ -1,4 +1,4 @@
-﻿using Lively.Common.Models;
+﻿using Lively.Models.Services;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -11,6 +11,7 @@ namespace Lively.Grpc.Client
         string LastCheckChangelog { get; }
         DateTime LastCheckTime { get; }
         Uri LastCheckUri { get; }
+        string LastCheckFileName { get; }
         Version LastCheckVersion { get; }
         AppUpdateStatus Status { get; }
 

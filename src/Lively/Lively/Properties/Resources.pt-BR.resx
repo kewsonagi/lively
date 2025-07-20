@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="AudioFocused.Content" xml:space="preserve">
-    <value>Tocar o áudio somente quando a área de trabalho estiver em foco</value>
+    <value>Tocar áudio somente quando área de trabalho estiver em foco</value>
   </data>
   <data name="Audio.Description" xml:space="preserve">
     <value>Nível de volume de todos os planos de fundo</value>
@@ -126,11 +126,11 @@
   <data name="Audio.Header" xml:space="preserve">
     <value>Volume</value>
   </data>
-  <data name="AudioGroup.Header" xml:space="preserve">
+  <data name="AudioGroup.Text" xml:space="preserve">
     <value>Áudio</value>
   </data>
   <data name="Community.Description" xml:space="preserve">
-    <value>Fórum de discussão online</value>
+    <value>Fórum de discussão</value>
   </data>
   <data name="Documentation.Description" xml:space="preserve">
     <value>Documentação da API e ajuda</value>
@@ -144,7 +144,7 @@ O Explorador do Windows reiniciou duas vezes nos últimos 30 segundos! Isso pode
     <value>Programa incompatível detectado, o tema da barra de tarefas foi desativado</value>
   </data>
   <data name="Website.Description" xml:space="preserve">
-    <value>Site oficial do Lively Wallpaper</value>
+    <value>Site oficial do Lively Wallpaper.</value>
   </data>
   <data name="DescOledScreensaverNotice" xml:space="preserve">
     <value>A maioria das telas LCD e LED não sofrem de queima de leds, e portanto qualquer plano de fundo pode ser usado como protetor de tela.
@@ -180,13 +180,13 @@ Aplicativos maliciosos podem conter malware, vírus... que podem danificar o seu
 Prossiga apenas se confia na fonte do aplicativo.</value>
   </data>
   <data name="MinimizedTray.Text" xml:space="preserve">
-    <value>Lively está minimizado na barra de tarefas, clique com o botão direito no ícone do Lively para continuar.</value>
+    <value>O Lively está minimizado na barra de tarefas, clique com o botão direito no ícone do Lively para continuar.</value>
   </data>
   <data name="DescriptionPleaseRestartLively" xml:space="preserve">
     <value>Reinicie o Lively para que as configurações tenham efeito</value>
   </data>
   <data name="DescriptionPleaseStop" xml:space="preserve">
-    <value>Por favor, pare antes de continuar.</value>
+    <value>Por favor, pare antes de continuar</value>
   </data>
   <data name="DescriptionRecordStart" xml:space="preserve">
     <value>Pressione para iniciar a gravação</value>
@@ -207,26 +207,26 @@ Prossiga apenas se confia na fonte do aplicativo.</value>
     <value>Esse assistente irá te ajudar a configurar o Lively</value>
   </data>
   <data name="DescriptionWindowsNCodecInstall" xml:space="preserve">
-    <value>Sua versão N/KN do Windows precisará do download de codecs adicionais para suportar a reprodução de vídeos nos planos de fundo</value>
+    <value>Sua versão N/KN do Windows precisará baixar os codecs adicionais para suportar a reprodução de vídeos nos planos de fundo</value>
   </data>
   <data name="DescSupperDev" xml:space="preserve">
     <value>Mostre seu apoio comprando um café para o desenvolvedor</value>
   </data>
   <data name="DescSwitchBranchBetaWarning" xml:space="preserve">
     <value>Você está prestes a mudar para a versão beta (desenvolvedor) do Lively.
-Atualizações serão frequentes e podem ter bugs!</value>
+Atualizações serão frequentes e podem conter alguns erros!</value>
   </data>
   <data name="HideSysTray.Description" xml:space="preserve">
-    <value>Visibilidade do ícone na bandeja do sistema, Lively continuará a ser executado com o ícone oculto</value>
+    <value>Visibilidade do ícone na bandeja do sistema, Lively continuará a ser executado com o ícone oculto </value>
   </data>
   <data name="HideSysTray.Header" xml:space="preserve">
     <value>Ícone da bandeja do sistema</value>
   </data>
   <data name="Language.Description" xml:space="preserve">
-    <value>O Lively irá reiniciar para aplicar o novo idioma</value>
+    <value>O Lively precisará reiniciar para aplicar o novo idioma</value>
   </data>
   <data name="Language.Header" xml:space="preserve">
-    <value>Idioma</value>
+    <value>idioma</value>
   </data>
   <data name="LivelyExceptionAppUpdateFail" xml:space="preserve">
     <value>Falha ao atualizar; tente baixar o instalador em:
@@ -237,7 +237,7 @@ https://github.com/rocksdanister/lively/releases</value>
   </data>
   <data name="LivelyExceptionGeneral" xml:space="preserve">
     <value>Oops... Parece que algo deu errado :(
-Para que possamos entender melhor este erro e corrigir o problema, compartilhe o arquivo de log com um desenvolvedor.
+Para podermos entender melhor este erro e corrigir o problema, compartilhe o arquivo de log com um desenvolvedor.
 Instruções para compartilhar o arquivo de log:
 https://github.com/rocksdanister/lively/wiki</value>
   </data>
@@ -254,20 +254,20 @@ Instruções para compartilhar o arquivo de log:
 https://github.com/rocksdanister/lively/wiki</value>
   </data>
   <data name="LivelyExceptionNotLivelyZip" xml:space="preserve">
-    <value>Não é um arquivo compatível com o Lively</value>
+    <value>Arquivo não compatível com o Lively</value>
   </data>
   <data name="LivelyExceptionSafeModeStart" xml:space="preserve">
     <value>O Lively não foi fechado corretamente, iniciando no modo de segurança.
-Deseja restaurar os planos de fundos que estavam ativos?</value>
+Deseja restaurar os planos de fundos que estavam ativos? </value>
   </data>
   <data name="LivelyExceptionWorkerWSetupFail" xml:space="preserve">
     <value>Parece que algumas configurações precisam ser feitas para que o Lively funcione corretamente:
-1. Aperte Win + R para abrir a janela de Executar.
-2. Digite "SystemPropertiesPerformance.exe" e aperte Enter para abrir as Opções de Desempenho.
-3. Ative/Marque "Animar controles e elementos no Windows" (Se já estiver marcado, então desmarque e marque de novo) &amp; Aplique.
-4. Clique em "Aplicar" e então aperte no "OK" para fechar a janela.
+1. Aperte Win + R para abrir a janela "Executar".
+2. Digite "SystemPropertiesPerformance.exe" e aperte Enter para abrir as "Opções de Desempenho".
+3. Ative/Marque "Animar controles e elementos no Windows" (Se já estiver marcado, então desmarque e marque de novo)
+4. Clique em "Aplicar" e então aperte "OK" para fechar a janela.
 
-Se estiver no Windows 7, ative "Ajustar para melhor aparência" &amp; Aplique.
+Se estiver no Windows 7, selecione a opção "Ajustar para melhor aparência" e Aplique.
 Se ainda não funcionar, abra o Lively novamente ou reinicie o Windows.
 (Não funciona em algumas versões insider do Windows 10)</value>
   </data>
@@ -283,8 +283,8 @@ Se ainda não funcionar, abra o Lively novamente ou reinicie o Windows.
   <data name="TextAllFiles" xml:space="preserve">
     <value>Todos os arquivos</value>
   </data>
-  <data name="Application.Header" xml:space="preserve">
-    <value>Aplicativo</value>
+  <data name="Application.Text" xml:space="preserve">
+    <value>Aplicação</value>
   </data>
   <data name="Attribution.Header" xml:space="preserve">
     <value>Atribuições</value>
@@ -340,7 +340,7 @@ Se ainda não funcionar, abra o Lively novamente ou reinicie o Windows.
   <data name="DisplayPauseRulePerScreen.Content" xml:space="preserve">
     <value>Por tela</value>
   </data>
-  <data name="TextDownload" xml:space="preserve">
+  <data name="TextDownload.Content" xml:space="preserve">
     <value>Baixar</value>
   </data>
   <data name="EditWallpaper.Text" xml:space="preserve">
@@ -356,7 +356,7 @@ Se ainda não funcionar, abra o Lively novamente ou reinicie o Windows.
     <value>Exportar lively .zip</value>
   </data>
   <data name="TextFeatureMissing" xml:space="preserve">
-    <value>Alguns recursos não estão disponíveis para essa versão do Lively.</value>
+    <value>Alguns recursos não estão disponíveis para essa versão do Lively</value>
   </data>
   <data name="TextFileNotFound" xml:space="preserve">
     <value>Arquivo não encontrado</value>
@@ -371,12 +371,12 @@ Se ainda não funcionar, abra o Lively novamente ou reinicie o Windows.
     <value>Ir</value>
   </data>
   <data name="TextHelpTranslate.Title" xml:space="preserve">
-    <value>Ajude a traduzir o Lively.</value>
+    <value>Ajude na tradução do Lively!</value>
   </data>
   <data name="TextHours" xml:space="preserve">
     <value>horas</value>
   </data>
-  <data name="TextInstall" xml:space="preserve">
+  <data name="TextInstall.Content" xml:space="preserve">
     <value>Instalar</value>
   </data>
   <data name="TextKeyboard.Content" xml:space="preserve">
@@ -422,7 +422,7 @@ Se ainda não funcionar, abra o Lively novamente ou reinicie o Windows.
     <value>Ativado</value>
   </data>
   <data name="TextOnline" xml:space="preserve">
-    <value>Online</value>
+    <value>On-line</value>
   </data>
   <data name="TextOpenLively" xml:space="preserve">
     <value>Abrir o Lively</value>
@@ -547,8 +547,8 @@ Se ainda não funcionar, abra o Lively novamente ou reinicie o Windows.
   <data name="TextUpdateAvailable" xml:space="preserve">
     <value>Atualização disponível!</value>
   </data>
-  <data name="TextUpdateCheck" xml:space="preserve">
-    <value>Procurar atualizações</value>
+  <data name="TextUpdateCheck.Content" xml:space="preserve">
+    <value>Verifique atualizações</value>
   </data>
   <data name="TextupdateCheckFail" xml:space="preserve">
     <value>Erro ao verificar atualização</value>
@@ -563,7 +563,7 @@ Se ainda não funcionar, abra o Lively novamente ou reinicie o Windows.
     <value>Vídeo</value>
   </data>
   <data name="TextWallpaperCommandlineArgs" xml:space="preserve">
-    <value>Insira argumentos da linha de comando opcionais</value>
+    <value>Executar Opções</value>
   </data>
   <data name="WallpaperFitFill.Content" xml:space="preserve">
     <value>Preencher</value>
@@ -577,14 +577,14 @@ Se ainda não funcionar, abra o Lively novamente ou reinicie o Windows.
   <data name="WallpaperFitUniformToFill.Content" xml:space="preserve">
     <value>Preenchimento uniforme</value>
   </data>
-  <data name="WallpaperLayoutDuplicate.Content" xml:space="preserve">
-    <value>Duplicar o mesmo plano de fundo</value>
+  <data name="WallpaperLayoutDuplicate.Text" xml:space="preserve">
+    <value>Contexto</value>
   </data>
-  <data name="WallpaperLayoutPerScreen.Content" xml:space="preserve">
-    <value>Apenas a tela selecionada</value>
+  <data name="WallpaperLayoutPerScreen.Text" xml:space="preserve">
+    <value>Tela</value>
   </data>
-  <data name="WallpaperLayoutSpan.Content" xml:space="preserve">
-    <value>Expandir</value>
+  <data name="WallpaperLayoutSpan.Text" xml:space="preserve">
+    <value>Span</value>
   </data>
   <data name="WallpaperType.Text" xml:space="preserve">
     <value>Tipo</value>
@@ -707,7 +707,7 @@ Todos os processos: Mais pesado, escaneia todos os processos para determinar o c
     <value>Armazenar arquivos temporários no disco ao invés da memória, as configurações serão restauradas quando o navegador for reiniciado.</value>
   </data>
   <data name="WebBrowser.Description" xml:space="preserve">
-    <value>CEF(Chromium Embedded Framework) é uma engine chromium leve.
+    <value>CEF (Chromium Embedded Framework) é uma engine chromium leve.
 O Edge é a webview embutida do Windows 10.</value>
   </data>
   <data name="About.Label" xml:space="preserve">
@@ -827,11 +827,8 @@ O Edge é a webview embutida do Windows 10.</value>
   <data name="ControlPanel.Title" xml:space="preserve">
     <value>Layout da tela</value>
   </data>
-  <data name="TitleScreensaver" xml:space="preserve">
+  <data name="TitleScreensaver.Content" xml:space="preserve">
     <value>Protetor de Tela</value>
-  </data>
-  <data name="TitleScreensaverLockOnResume" xml:space="preserve">
-    <value>Ao retornar, exibir tela de logon</value>
   </data>
   <data name="TitleSelectFile" xml:space="preserve">
     <value>Selecione o arquivo</value>
@@ -858,7 +855,7 @@ O Edge é a webview embutida do Windows 10.</value>
   <data name="TitleStreamWallpaperVideoQuality" xml:space="preserve">
     <value>Qualidade do Vídeo</value>
   </data>
-  <data name="System.Header" xml:space="preserve">
+  <data name="System.Text" xml:space="preserve">
     <value>Sistema</value>
   </data>
   <data name="TaskbarTheme.Header" xml:space="preserve">
@@ -879,8 +876,11 @@ O Edge é a webview embutida do Windows 10.</value>
   <data name="VideoHardwareDecode.Header" xml:space="preserve">
     <value>Decodificação via GPU</value>
   </data>
-  <data name="TitleWallpaper" xml:space="preserve">
-    <value>Plano de fundo</value>
+  <data name="TitleWallpaper.Content" xml:space="preserve">
+    <value>Plano de Fundo</value>
+  </data>
+  <data name="TitleCustomise.Content" xml:space="preserve">
+    <value>Customizar</value>
   </data>
   <data name="WallpaperDir.Header" xml:space="preserve">
     <value>Local dos planos de fundo</value>
@@ -897,7 +897,7 @@ O Edge é a webview embutida do Windows 10.</value>
   <data name="WallpaperLayout.Header" xml:space="preserve">
     <value>Selecione a disposição do plano de fundo</value>
   </data>
-  <data name="WallpaperPlaybackGroup.Header" xml:space="preserve">
+  <data name="WallpaperPlaybackGroup.Text" xml:space="preserve">
     <value>Reprodução do plano de fundo</value>
   </data>
   <data name="TitleWarning" xml:space="preserve">
@@ -921,7 +921,7 @@ O Edge é a webview embutida do Windows 10.</value>
   <data name="FastUI.Header" xml:space="preserve">
     <value>Inicialização Rápida</value>
   </data>
-  <data name="WallpaperDirGroup.Header" xml:space="preserve">
+  <data name="WallpaperDirGroup.Text" xml:space="preserve">
     <value>Arquivo</value>
   </data>
   <data name="AppThemeDark.Content" xml:space="preserve">
@@ -936,13 +936,13 @@ O Edge é a webview embutida do Windows 10.</value>
   <data name="WindowsSettingsColor.Content" xml:space="preserve">
     <value>Configurações de cor do Windows</value>
   </data>
-  <data name="LaptopWallpaperPlaybackGroup.Header" xml:space="preserve">
+  <data name="LaptopWallpaperPlaybackGroup.Text" xml:space="preserve">
     <value>Notebooks</value>
   </data>
-  <data name="DeveloperGroup.Header" xml:space="preserve">
+  <data name="DeveloperGroup.Text" xml:space="preserve">
     <value>Desenvolvedor</value>
   </data>
-  <data name="AppearanceBehaviour.Header" xml:space="preserve">
+  <data name="AppearanceBehaviour.Text" xml:space="preserve">
     <value>Aparência &amp; comportamento</value>
   </data>
   <data name="ActiveWallpapers.Label" xml:space="preserve">
@@ -999,11 +999,11 @@ O Edge é a webview embutida do Windows 10.</value>
   <data name="Screensaver.Header" xml:space="preserve">
     <value>Tipo de protetor de tela</value>
   </data>
-  <data name="ScreensaverModeDifferentWallpaper.Content" xml:space="preserve">
-    <value>Configurado separadamente</value>
+  <data name="ScreensaverModeDifferentWallpaper.Text" xml:space="preserve">
+    <value>Personalizado</value>
   </data>
-  <data name="ScreensaverModeSameWallpaper.Content" xml:space="preserve">
-    <value>Igual ao plano de fundo em execução</value>
+  <data name="ScreensaverModeSameWallpaper.Text" xml:space="preserve">
+    <value>Contexto</value>
   </data>
   <data name="ScreensaverPlugin.Title" xml:space="preserve">
     <value>Plugin necessário</value>
@@ -1099,7 +1099,7 @@ O Edge é a webview embutida do Windows 10.</value>
     <value>Por favor confirme esta ação já que ela NÃO PODERÁ ser desfeita</value>
   </data>
   <data name="GalleryAccountDeleteFail.Text" xml:space="preserve">
-    <value>Falha ao exluir a conta, tente de novo mais tarde</value>
+    <value>Falha ao excluir a conta, tente novamente mais tarde</value>
   </data>
   <data name="TextConfirmCancel.Text" xml:space="preserve">
     <value>Deseja cancela-lo?</value>
@@ -1156,7 +1156,7 @@ O Edge é a webview embutida do Windows 10.</value>
     <value>Usar o padrão do sistema</value>
   </data>
   <data name="DescriptionDynamicTheme.Text" xml:space="preserve">
-    <value>Adaptar ao plano de funo</value>
+    <value>Adaptar ao plano de fundo</value>
   </data>
   <data name="TextDefault.Text" xml:space="preserve">
     <value>Padrão</value>
@@ -1168,7 +1168,7 @@ O Edge é a webview embutida do Windows 10.</value>
     <value>Tema</value>
   </data>
   <data name="IconsHidden.Message" xml:space="preserve">
-    <value>Para evitar a seleção acidental, os ícones da área de trabalho foram no momento ocultos</value>
+    <value>Para evitar a seleção acidental, ícones da área de trabalho estão atualmente ocultos</value>
   </data>
   <data name="IconsHidden.Title" xml:space="preserve">
     <value>Ícones da Área de Trabalho</value>
@@ -1179,7 +1179,7 @@ O Edge é a webview embutida do Windows 10.</value>
   <data name="DevelopmentOnHold.Message" xml:space="preserve">
     <value>Esta funcionalidade está em desenvolvimento</value>
   </data>
-  <data name="WallpaperPluginGroup.Header" xml:space="preserve">
+  <data name="WallpaperPluginGroup.Text" xml:space="preserve">
     <value>Plugins</value>
   </data>
   <data name="AddWallpaperAdvanced.Description" xml:space="preserve">
@@ -1213,7 +1213,7 @@ O Edge é a webview embutida do Windows 10.</value>
     <value>Criar papel de parede</value>
   </data>
   <data name="RunningAsAdminWarning.Message" xml:space="preserve">
-    <value>Algumas funcionalidades podem não estar disponíveis quando executar como administrador</value>
+    <value>Algumas funções podem não estar disponíveis quando forem executadas como administrador</value>
   </data>
   <data name="DescriptionDownloadRequired.Text" xml:space="preserve">
     <value>Arquivos adicionais precisam ser baixados para esta funcionalidade</value>
@@ -1223,5 +1223,50 @@ O Edge é a webview embutida do Windows 10.</value>
   </data>
   <data name="TitleDownload.Content" xml:space="preserve">
     <value>Baixar</value>
+  </data>
+  <data name="TextBecomePatreonMember.Content" xml:space="preserve">
+    <value>Torne-se um apoiador Patreon</value>
+  </data>
+  <data name="TextPatreonMembersThankYou.Text" xml:space="preserve">
+    <value>Obrigado a todos os membros que apoiam este projeto.</value>
+  </data>
+  <data name="TitlePatreon.Text" xml:space="preserve">
+    <value>Apoiadores do Patreon</value>
+  </data>
+  <data name="SelectScreensaverCustomMode.Text" xml:space="preserve">
+    <value>Selecione o protetor de tela</value>
+  </data>
+  <data name="WebViewRequired.Message" xml:space="preserve">
+    <value>Microsoft WebView2 é necessário para ver este conteúdo</value>
+  </data>
+  <data name="WebViewRequired.Title" xml:space="preserve">
+    <value>Plugin necessário</value>
+  </data>
+  <data name="AppMusicExclusion.Description" xml:space="preserve">
+    <value>Selecione aplicativos para remover de mostrar detalhes de música</value>
+  </data>
+  <data name="AppMusicExclusion.Header" xml:space="preserve">
+    <value>Exclusão de aplicativos</value>
+  </data>
+  <data name="RestartCommand.Content" xml:space="preserve">
+    <value>Reiniciar</value>
+  </data>
+  <data name="WallpaperMusicGroup.Text" xml:space="preserve">
+    <value>Música</value>
+  </data>
+  <data name="WallpaperRestartRequiredNotify.Message" xml:space="preserve">
+    <value>É preciso reiniciar o plano de fundo para que as configurações tenham efeito</value>
+  </data>
+  <data name="LanguageSettingsItemSystemDefault.Content" xml:space="preserve">
+    <value>Padrão do Sistema</value>
+  </data>
+  <data name="InfoSettingsRestartRequest.Message" xml:space="preserve">
+    <value>Por favor, reinicie o aplicativo para que as configurações tenham efeito.</value>
+  </data>
+  <data name="ScreensaverLockOnResume.Header" xml:space="preserve">
+    <value>Ao retornar, exibir tela de logon</value>
+  </data>
+  <data name="ScreensaverFadeIn.Header" xml:space="preserve">
+    <value>Fade to black before start</value>
   </data>
 </root>

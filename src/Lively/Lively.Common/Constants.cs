@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Lively.Models.Enums;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
@@ -9,8 +10,6 @@ namespace Lively.Common
     {
         public static class CommonPaths
         {
-            //User configurable in settings
-            //public static string WallpaperDir { get; set; }
             public static string AppDataDir { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lively Wallpaper");
             public static string LogDir { get; } = Path.Combine(AppDataDir, "logs");
             public static string LogDirUI { get; } = Path.Combine(AppDataDir, "UI"); //temp use..
@@ -20,27 +19,45 @@ namespace Lively.Common
             public static string TempVideoDir { get; } = Path.Combine(AppDataDir, "Mpv");
             public static string AppRulesPath { get; } = Path.Combine(AppDataDir, "AppRules.json");
             public static string WallpaperLayoutPath { get; } = Path.Combine(AppDataDir, "WallpaperLayout.json");
+            public static string ScreenSaverLayoutPath { get; } = Path.Combine(AppDataDir, "ScreenSaverLayout.json");
             public static string UserSettingsPath { get; } = Path.Combine(AppDataDir, "Settings.json");
+            public static string MusicAppExclusionRulesPath { get; } = Path.Combine(AppDataDir, "MusicAppExclusionRules.json");
             public static string WeatherSettingsPath { get; } = Path.Combine(AppDataDir, "WeatherSettings.json");
             public static string ThemeDir { get; } = Path.Combine(AppDataDir, "Themes");
             public static string ThemeCacheDir { get; } = Path.Combine(Path.GetTempPath(), "Lively Wallpaper", "themes");
+            public static string CefRootCacheDir { get; } = Path.Combine(Path.GetTempPath(), "Lively Wallpaper", "CEF");
             public static string TokensPath { get; } = Path.Combine(AppDataDir, "Tokens.dat");
         }
 
+        /// <summary>
+        /// To be combined with dynamic path Settings.WallpaperDir
+        /// </summary>
         public static class CommonPartialPaths
         {
-            /// <summary>
-            /// To be combined with dynamic path Settings.WallpaperDir
-            /// </summary>
             public static string WallpaperInstallDir { get; } = "wallpapers";
-            /// <summary>
-            /// To be combined with dynamic path Settings.WallpaperDir
-            /// </summary>
             public static string WallpaperInstallTempDir { get; } = Path.Combine("SaveData", "wptmp");
-            /// <summary>
-            /// To be combined with dynamic path Settings.WallpaperDir
-            /// </summary>
             public static string WallpaperSettingsDir { get; } = Path.Combine("SaveData", "wpdata");
+        }
+
+        /// <summary>
+        /// To be combined with Core base directory.
+        /// </summary>
+        public static class PlayerPartialPaths
+        {
+            public static string MpvDir { get; } = Path.Combine("plugins", "mpv");
+            public static string MpvPath { get; } = Path.Combine(MpvDir, "mpv.exe");
+            public static string CefSharpDir { get; } = Path.Combine("plugins", "cef");
+            public static string CefSharpPath { get; } = Path.Combine(CefSharpDir, "Lively.Player.CefSharp.exe");
+            public static string WebView2Dir { get; } = Path.Combine("plugins", "webview2");
+            public static string WebView2Path { get; } = Path.Combine(WebView2Dir, "Lively.Player.WebView2.exe");
+            public static string WmfDir { get; } = Path.Combine("plugins", "wmf");
+            public static string WmfPath { get; } = Path.Combine(WmfDir, "Lively.PlayerWmf.exe");
+            public static string VlcDir { get; } = Path.Combine("plugins", "vlc");
+            public static string VlcPath { get; } = Path.Combine(VlcDir, "vlc.exe");
+            //public static string LibVlcExtDir { get; } = Path.Combine("plugins", "libVLCPlayer");
+            //public static string LibVlcExtPath { get; } = Path.Combine(LibVlcExtDir, "libVLCPlayer.exe");
+            //public static string LibMpvExtDir { get; } = Path.Combine("plugins", "libMPVPlayer");
+            //public static string LibMpvExtPath { get; } = Path.Combine(LibMpvExtDir, "libMPVPlayer.exe");
         }
 
         public static class MachineLearning
@@ -67,6 +84,14 @@ namespace Lively.Common
         {
             //todo: make compile-time flag.
             public static string OpenWeatherMapAPIKey = string.Empty;
+        }
+
+        public static class AppDefaults
+        {
+            public static LivelyWebBrowser WebBrowser { get; } = LivelyWebBrowser.webview2;
+            public static LivelyMediaPlayer VideoPlayer { get; } = LivelyMediaPlayer.mpv;
+            public static LivelyPicturePlayer PicturePlayer { get; } = LivelyPicturePlayer.mpv;
+            public static LivelyGifPlayer GifPlayer { get; } = LivelyGifPlayer.mpv;
         }
     }
 }

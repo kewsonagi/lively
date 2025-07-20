@@ -1,39 +1,43 @@
-﻿using GrpcDotNetNamedPipes;
+﻿using CommandLine;
+using GrpcDotNetNamedPipes;
+using Lively.Commandline;
 using Lively.Common;
+using Lively.Common.Extensions;
+using Lively.Common.Factories;
+using Lively.Common.Helpers;
+using Lively.Common.Helpers.Archive;
+using Lively.Common.Helpers.Files;
+using Lively.Common.Services;
 using Lively.Core;
 using Lively.Core.Display;
 using Lively.Core.Suspend;
 using Lively.Core.Watchdog;
 using Lively.Factories;
+using Lively.Grpc.Common.Proto.Commands;
 using Lively.Grpc.Common.Proto.Desktop;
+using Lively.Grpc.Common.Proto.Display;
+using Lively.Grpc.Common.Proto.Update;
+using Lively.Helpers;
+using Lively.Models;
+using Lively.Models.Enums;
+using Lively.Models.Services;
 using Lively.RPC;
 using Lively.Services;
+using Lively.ViewModels;
+using Lively.Views;
+using Lively.Views.WindowMsg;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Threading;
-using System.Windows;
-using Lively.Grpc.Common.Proto.Settings;
-using System.Threading.Tasks;
-using Lively.Grpc.Common.Proto.Display;
-using Lively.Grpc.Common.Proto.Commands;
 using System.Linq;
-using Lively.Automation;
-using Lively.Views.WindowMsg;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Threading;
-using Lively.Views;
-using Lively.Grpc.Common.Proto.Update;
-using Lively.Common.Helpers.Files;
-using Lively.Common.Helpers.Archive;
-using Lively.Models;
-using Lively.Common.Helpers;
-using Microsoft.Win32;
-using System.Reflection;
-using Lively.Common.Models;
-using Lively.Common.Services.Update;
-using Lively.Helpers;
-using Lively.Common.Services.Downloader;
+using static Lively.Common.CommandlineArgs;
 
 namespace Lively
 {
@@ -43,8 +47,9 @@ namespace Lively
     public partial class App : Application
     {
         private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
-        private readonly Mutex mutex = new Mutex(false, Constants.SingleInstance.UniqueAppName);
         private readonly NamedPipeServer grpcServer;
+        private int updateNotifyAmt = 1;
+        private static Mutex mutex;
 
         private readonly IServiceProvider _serviceProvider;
         /// <summary>
@@ -58,35 +63,52 @@ namespace Lively
                 return serviceProvider ?? throw new InvalidOperationException("The service provider is not initialized");
             }
         }
+        public static bool IsExclusiveScreensaverMode { get; private set; }
 
         public App()
         {
+            // Commandline args, first element is application path.
+            var commandArgs = Environment.GetCommandLineArgs().Skip(1).ToArray();
             try
             {
-                //wait a few seconds in case application instance is just shutting down..
-                if (!mutex.WaitOne(TimeSpan.FromSeconds(1), false))
+                if (!AcquireMutex())
                 {
                     try
                     {
-                        //skipping first element (application path.)
-                        var args = Environment.GetCommandLineArgs().Skip(1).ToArray();
+                        // If another instance is running, communicate with it and then exit.
                         var client = new CommandsService.CommandsServiceClient(new NamedPipeChannel(".", Constants.SingleInstance.GrpcPipeServerName));
                         var request = new AutomationCommandRequest();
-                        request.Args.AddRange(args.Length != 0 ? args : new string[] { "--showApp", "true" });
+                        // If no argument assume user opened via icon and show interface.
+                        request.Args.AddRange(commandArgs.Length != 0 ? commandArgs : ["--showApp", "true"]);
                         _ = client.AutomationCommandAsync(request);
                     }
                     catch (Exception e)
                     {
                         _ = MessageBox.Show($"Failed to communicate with Core:\n{e.Message}", "Lively Wallpaper");
                     }
-                    ShutDown();
+                    QuitApp();
                     return;
                 }
             }
             catch (AbandonedMutexException e)
             {
-                //unexpected app termination.
+                // If a thread terminates while owning a mutex, the mutex is said to be abandoned.
+                // The state of the mutex is set to signaled, and the next waiting thread gets ownership.
+                // Ref: https://learn.microsoft.com/en-us/dotnet/api/system.threading.mutex?view=net-8.0
                 Debug.WriteLine(e.Message);
+            }
+            // Call release on same thread.
+            this.Exit += (_, _) => ReleaseMutex();
+            // Parse commands (if any) before configuring services
+            if (commandArgs.Length != 0)
+            {
+                var opts = new ScreenSaverOptions();
+                Parser.Default.ParseArguments<ScreenSaverOptions>(commandArgs)
+                    .WithParsed((x) => opts = x)
+                    .WithNotParsed((x) => Debug.WriteLine(x));
+
+                if (opts.ShowExclusive != null)
+                    IsExclusiveScreensaverMode = opts.ShowExclusive == true && !Constants.ApplicationType.IsMSIX;
             }
 
             SetupUnhandledExceptionLogging();
@@ -94,95 +116,61 @@ namespace Lively
 
             //App() -> OnStartup() -> App.Startup event.
             _serviceProvider = ConfigureServices();
+            var userSettings = Services.GetRequiredService<IUserSettingsService>();
             grpcServer = ConfigureGrpcServer();
 
             try
             {
-                //clear temp files from previous run if any..
-                FileUtil.EmptyDirectory(Constants.CommonPaths.TempDir);
-                FileUtil.EmptyDirectory(Constants.CommonPaths.ThemeCacheDir);
-            }
-            catch { /* TODO */ }
-
-            try
-            {
-                //create directories if not exist, eg: C:\Users\<User>\AppData\Local
-                Directory.CreateDirectory(Constants.CommonPaths.AppDataDir);
-                Directory.CreateDirectory(Constants.CommonPaths.LogDir);
-                Directory.CreateDirectory(Constants.CommonPaths.ThemeDir);
-                Directory.CreateDirectory(Constants.CommonPaths.TempDir);
-                Directory.CreateDirectory(Constants.CommonPaths.TempCefDir);
-                Directory.CreateDirectory(Constants.CommonPaths.TempVideoDir);
-                Directory.CreateDirectory(Constants.CommonPaths.ThemeCacheDir);
+                // Run startup tasks.
+                Services.GetRequiredService<AppInitializer>().Run();
+                // Set application language.
+                Services.GetRequiredService<IResourceService>().SetCulture(userSettings.Settings.Language);
+                Services.GetRequiredService<WndProcMsgWindow>().Show();
+                Services.GetRequiredService<RawInputMsgWindow>().Show();
+                Services.GetRequiredService<IPlayback>().Start();
+                Services.GetRequiredService<ISystray>();
             }
             catch (Exception ex)
             {
-                //nothing much can be done here..
-                MessageBox.Show(ex.Message, "AppData directory creation failed, exiting Lively..", MessageBoxButton.OK, MessageBoxImage.Error);
-                ShutDown();
+                Logger.Error(ex);
+                MessageBox.Show(ex.ToString(), ex.Message, MessageBoxButton.OK, MessageBoxImage.Error);
+                QuitApp();
                 return;
             }
+            
+            // System notification.
+            Services.GetRequiredService<IDesktopCore>().WallpaperError += (s, e) =>
+            {
+                if (!Services.GetRequiredService<IRunnerService>().IsVisibleUI)
+                    Services.GetRequiredService<ISystray>().ShowBalloonNotification(4000, Lively.Properties.Resources.TextError, e.Message);
+            };
 
-            try
+            if (IsExclusiveScreensaverMode)
             {
-                //default livelyproperty for media files..
-                var mediaProperty = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "mpv", "api", "LivelyProperties.json");
-                if (File.Exists(mediaProperty))
-                {
-                    File.Copy(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "mpv", "api", "LivelyProperties.json"),
-                        Path.Combine(Constants.CommonPaths.TempVideoDir, "LivelyProperties.json"), true);
-                }
+                Logger.Info("Starting in exclusive screensaver mode, skipping wallpaper restore..");
+                var screenSaverService = Services.GetRequiredService<IScreensaverService>();
+                screenSaverService.Stopped += (_, _) => {
+                    App.QuitApp();
+                };
+                // Custom theme resources are not this early, make sure not to call any window or control using it.
+                _ = screenSaverService.StartAsync(false);
             }
-            catch { /* TODO */ }
-
-            var userSettings = Services.GetRequiredService<IUserSettingsService>();
-            try
+            else
             {
-                CreateWallpaperDir(userSettings.Settings.WallpaperDir);
-            }
-            catch (Exception ex)
-            {
-                Logger.Error($"Wallpaper directory setup failed: {ex.Message}, falling back to default.");
-                userSettings.Settings.WallpaperDir = Path.Combine(Constants.CommonPaths.AppDataDir, "Library");
-                CreateWallpaperDir(userSettings.Settings.WallpaperDir);
-                userSettings.Save<SettingsModel>();
+                // Restore wallpaper(s) from previous run.
+                Services.GetRequiredService<IDesktopCore>().RestoreWallpaper();
             }
 
-            Services.GetRequiredService<WndProcMsgWindow>().Show();
-            Services.GetRequiredService<RawInputMsgWindow>().Show();
-            Services.GetRequiredService<IPlayback>().Start();
-            Services.GetRequiredService<ISystray>();
-
-            //Install any new asset collection if present, do this before restoring wallpaper incase wallpaper is updated.
-            //On first run default assets are installed by UI to avoid slow startup times and better user experience.
-            if (userSettings.Settings.IsUpdated || userSettings.Settings.IsFirstRun)
-            {
-                SplashWindow spl = userSettings.Settings.IsFirstRun ? new(0, 500) : null; spl?.Show();
-                var maxWallpaper = ZipExtract.ExtractAssetBundle(userSettings.Settings.WallpaperBundleVersion,
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "bundle", "wallpapers"),
-                    Path.Combine(userSettings.Settings.WallpaperDir, Constants.CommonPartialPaths.WallpaperInstallDir));
-                var maxTheme = ZipExtract.ExtractAssetBundle(userSettings.Settings.ThemeBundleVersion,
-                    Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "bundle", "themes"),
-                    Path.Combine(Constants.CommonPaths.ThemeDir));
-                if (maxTheme != userSettings.Settings.ThemeBundleVersion || maxWallpaper != userSettings.Settings.WallpaperBundleVersion)
-                {
-                    userSettings.Settings.WallpaperBundleVersion = maxWallpaper;
-                    userSettings.Settings.ThemeBundleVersion = maxTheme;
-                    userSettings.Save<SettingsModel>();
-                }
-                spl?.Close();
-            }
-
-            //restore wallpaper(s) from previous run.
-            Services.GetRequiredService<IDesktopCore>().RestoreWallpaper();
-
-            //first run Setup-Wizard show..
+            // First run setup wizard show.
             if (userSettings.Settings.IsFirstRun)
-            {
                 Services.GetRequiredService<IRunnerService>().ShowUI();
-            }
 
-            //need to load theme later stage of startu to update..
+            if (userSettings.Settings.SystemTaskbarTheme != TaskbarTheme.none)
+                Services.GetRequiredService<ITransparentTbService>().Start(userSettings.Settings.SystemTaskbarTheme);
+
+            _ = WindowsStartup.TrySetStartup(userSettings.Settings.Startup);
+
+            // Need to load theme later stage of startup to update.
             this.Startup += (s, e) => {
                 ChangeTheme(userSettings.Settings.ApplicationTheme);
             };
@@ -191,9 +179,9 @@ namespace Lively
             SystemEvents.UserPreferenceChanged += (s, e) => {
                 if (e.Category == UserPreferenceCategory.General)
                 {
-                    if (userSettings.Settings.ApplicationTheme == Common.AppTheme.Auto)
+                    if (userSettings.Settings.ApplicationTheme == Models.Enums.AppTheme.Auto)
                     {
-                        ChangeTheme(Common.AppTheme.Auto);
+                        ChangeTheme(Models.Enums.AppTheme.Auto);
                     }
                 }
             };
@@ -202,14 +190,14 @@ namespace Lively
                 if (e.ReasonSessionEnding == ReasonSessionEnding.Shutdown || e.ReasonSessionEnding == ReasonSessionEnding.Logoff)
                 {
                     e.Cancel = true;
-                    ShutDown();
+                    QuitApp();
                 }
             };
 
-#if DEBUG != true
+#if !DEBUG
             var appUpdater = Services.GetRequiredService<IAppUpdaterService>();
             appUpdater.UpdateChecked += AppUpdateChecked;
-            _ = appUpdater.CheckUpdate();
+            _ = appUpdater.CheckUpdate(30 * 1000);
             appUpdater.Start();
 #endif
             Debug.WriteLine("App Update checking disabled in DEBUG mode.");
@@ -219,8 +207,8 @@ namespace Lively
         {
             //TODO: Logger abstraction.
             var provider = new ServiceCollection()
-                //singleton
-                .AddSingleton<IUserSettingsService, JsonUserSettingsService>()
+                // Singleton
+                .AddSingleton<IUserSettingsService, UserSettingsService>()
                 .AddSingleton<IDesktopCore, WinDesktopCore>()
                 .AddSingleton<IWatchdogService, WatchdogProcess>()
                 .AddSingleton<IDisplayManager, DisplayManager>()
@@ -238,14 +226,18 @@ namespace Lively
                 .AddSingleton<CommandsServer>()
                 .AddSingleton<AppUpdateServer>()
                 .AddSingleton<WallpaperPlaylistServer>()
-                //transient
-                //.AddTransient<IApplicationsRulesFactory, ApplicationsRulesFactory>()
+                .AddSingleton<IResourceService, ResourceService>()
+                // Transient
+                .AddTransient<AppInitializer>()
+                .AddTransient<LibraryPreviewViewModel>()
                 .AddTransient<IWallpaperLibraryFactory, WallpaperLibraryFactory>()
                 .AddTransient<IWallpaperPluginFactory, WallpaperPluginFactory>()
                 .AddTransient<ILivelyPropertyFactory, LivelyPropertyFactory>()
                 //.AddTransient<IScreenRecorder, ScreenRecorderlibScreen>()
                 .AddTransient<ICommandHandler, CommandHandler>()
-                .AddTransient<IDownloadService, MultiDownloadService>()
+                .AddTransient<IDownloadService, HttpDownloadService>()
+                //https://docs.microsoft.com/en-us/dotnet/architecture/microservices/implement-resilient-applications/use-httpclientfactory-to-implement-resilient-http-requests
+                .AddHttpClient()
                 //.AddTransient<SetupView>()
                 /*
                 .AddLogging(loggingBuilder =>
@@ -266,7 +258,7 @@ namespace Lively
         {
             var server = new NamedPipeServer(Constants.SingleInstance.GrpcPipeServerName);
             DesktopService.BindService(server.ServiceBinder, Services.GetRequiredService<WinDesktopCoreServer>());
-            SettingsService.BindService(server.ServiceBinder, Services.GetRequiredService<UserSettingsServer>());
+            Grpc.Common.Proto.Settings.SettingsService.BindService(server.ServiceBinder, Services.GetRequiredService<UserSettingsServer>());
             DisplayService.BindService(server.ServiceBinder, Services.GetRequiredService<DisplayManagerServer>());
             CommandsService.BindService(server.ServiceBinder, Services.GetRequiredService<CommandsServer>());
             UpdateService.BindService(server.ServiceBinder, Services.GetRequiredService<AppUpdateServer>());
@@ -279,17 +271,17 @@ namespace Lively
         /// <summary>
         /// Actual apptheme, no Auto allowed.
         /// </summary>
-        private static Common.AppTheme currentTheme = Common.AppTheme.Dark;
-        public static void ChangeTheme(Common.AppTheme theme)
+        private static Models.Enums.AppTheme currentTheme = Models.Enums.AppTheme.Dark;
+        public static void ChangeTheme(Models.Enums.AppTheme theme)
         {
-            theme = theme == Common.AppTheme.Auto ? ThemeUtil.GetWindowsTheme() : theme;
+            theme = theme == Models.Enums.AppTheme.Auto ? ThemeUtil.GetWindowsTheme() : theme;
             if (currentTheme == theme)
                 return;
 
             Uri uri = theme switch
             {
-                Common.AppTheme.Light => new Uri("Themes/Light.xaml", UriKind.Relative),
-                Common.AppTheme.Dark => new Uri("Themes/Dark.xaml", UriKind.Relative),
+                Models.Enums.AppTheme.Light => new Uri("Themes/Light.xaml", UriKind.Relative),
+                Models.Enums.AppTheme.Dark => new Uri("Themes/Dark.xaml", UriKind.Relative),
                 _ => new Uri("Themes/Dark.xaml", UriKind.Relative)
             };
 
@@ -310,55 +302,23 @@ namespace Lively
             currentTheme = theme;
         }
 
-        //number of times to notify user about update.
-        private static int updateNotifyAmt = 1;
-        private static bool updateNotify = false;
         private void AppUpdateChecked(object sender, AppUpdaterEventArgs e)
         {
-            var sysTray = Services.GetRequiredService<ISystray>();
             _ = Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Background, new ThreadStart(delegate
             {
-                if (e.UpdateStatus == AppUpdateStatus.available)
-                {
-                    if (updateNotifyAmt > 0)
-                    {
-                        updateNotifyAmt--;
-                        updateNotify = true;
-                        sysTray?.ShowBalloonNotification(4000,
-                            "Lively Wallpaper",
-                            Lively.Properties.Resources.TextUpdateAvailable);
-                    }
-
-                    //If UI program already running then notification is displayed withing the it.
-                    if (!Services.GetRequiredService<IRunnerService>().IsVisibleUI && updateNotify)
-                    {
-                        AppUpdateDialog(e.UpdateUri, e.ChangeLog);
-                    }
-                }
                 Logger.Info($"AppUpdate status: {e.UpdateStatus}");
-            }));
-        }
+                if (e.UpdateStatus != AppUpdateStatus.available || updateNotifyAmt <= 0)
+                    return;
 
-        private static AppUpdater updateWindow;
-        public static void AppUpdateDialog(Uri uri, string changelog)
-        {
-            updateNotify = false;
-            if (updateWindow == null)
-            {
-                updateWindow = new AppUpdater(uri, changelog)
+                updateNotifyAmt--;
+                // If interface is visible then skip (shown in-app instead.)
+                if (!Services.GetRequiredService<IRunnerService>().IsVisibleUI)
                 {
-                    WindowStartupLocation = WindowStartupLocation.CenterScreen
-                };
-                updateWindow.Closed += (s, e) => { updateWindow = null; };
-                updateWindow.Show();
-            }
-        }
-
-        private void CreateWallpaperDir(string baseDirectory)
-        {
-            Directory.CreateDirectory(Path.Combine(baseDirectory, Constants.CommonPartialPaths.WallpaperInstallDir));
-            Directory.CreateDirectory(Path.Combine(baseDirectory, Constants.CommonPartialPaths.WallpaperInstallTempDir));
-            Directory.CreateDirectory(Path.Combine(baseDirectory, Constants.CommonPartialPaths.WallpaperSettingsDir));
+                    Services.GetRequiredService<ISystray>().ShowBalloonNotification(4000,
+                        "Lively Wallpaper",
+                        Lively.Properties.Resources.TextUpdateAvailable);
+                }
+            }));
         }
 
         private void SetupUnhandledExceptionLogging()
@@ -377,7 +337,25 @@ namespace Lively
 
         private void LogUnhandledException(Exception exception, string source) => Logger.Error(exception);
 
-        public static void ShutDown()
+        public static bool AcquireMutex()
+        {
+            mutex = new Mutex(true, Constants.SingleInstance.UniqueAppName, out bool mutexCreated);
+            if (!mutexCreated)
+            {
+                mutex = null;
+                return false;
+            }
+            return true;
+        }
+
+        public static void ReleaseMutex()
+        {
+            mutex?.ReleaseMutex();
+            mutex?.Close();
+            mutex = null;
+        }
+
+        public static void QuitApp()
         {
             try
             {
@@ -385,7 +363,7 @@ namespace Lively
             }
             catch (InvalidOperationException) { /* not initialised */ }
             ((App)Current).grpcServer?.Dispose();
-            //Shutdown needs to be called from dispatcher..
+            // Shutdown needs to be called from dispatcher.
             Application.Current.Dispatcher.Invoke(Application.Current.Shutdown);
         }
     }

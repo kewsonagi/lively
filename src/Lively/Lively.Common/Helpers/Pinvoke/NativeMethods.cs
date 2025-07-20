@@ -13,6 +13,25 @@ namespace Lively.Common.Helpers.Pinvoke
 #pragma warning disable CA1707, CA1401, CA1712
     public static class NativeMethods
     {
+        public enum GetAncestorFlags
+        {
+            /// <summary>
+            /// Retrieves the parent window. This does not include the owner, as it does with the GetParent function.
+            /// </summary>
+            GetParent = 1,
+            /// <summary>
+            /// Retrieves the root window by walking the chain of parent windows.
+            /// </summary>
+            GetRoot = 2,
+            /// <summary>
+            /// Retrieves the owned root window by walking the chain of parent and owner windows returned by GetParent.
+            /// </summary>
+            GetRootOwner = 3
+        }
+
+        [DllImport("user32.dll", ExactSpelling = true)]
+        public static extern IntPtr GetAncestor(IntPtr hwnd, GetAncestorFlags flags);
+
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern bool QueryFullProcessImageName([In] IntPtr hProcess, [In] int dwFlags, [Out] StringBuilder lpExeName, ref int lpdwSize);
 
@@ -21,6 +40,10 @@ namespace Lively.Common.Helpers.Pinvoke
                                                  DWMWINDOWATTRIBUTE attribute,
                                                  ref DWM_WINDOW_CORNER_PREFERENCE pvAttribute,
                                                  uint cbAttribute);
+
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+
         public enum DWMWINDOWATTRIBUTE
         {
             NCRenderingEnabled = 1,
@@ -1477,6 +1500,7 @@ namespace Lively.Common.Helpers.Pinvoke
 
         public abstract class WindowStyles
         {
+            public const uint WS_EX_NOREDIRECTIONBITMAP = 0x00200000;
             public const uint WS_OVERLAPPED = 0x00000000;
             public const uint WS_POPUP = 0x80000000;
             public const uint WS_CHILD = 0x40000000;

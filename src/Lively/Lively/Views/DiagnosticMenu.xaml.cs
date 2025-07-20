@@ -2,18 +2,15 @@
 using Lively.Common.Helpers;
 using Microsoft.Win32;
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.Windows;
 
 namespace Lively.Views
 {
-    /// <summary>
-    /// Interaction logic for DiagnosticMenu.xaml
-    /// </summary>
     public partial class DiagnosticMenu : Window
     {
         private DebugLog debugLogWindow;
+        private WindowCoverageDebugOverlay gridOverlay;
 
         public DiagnosticMenu()
         {
@@ -44,15 +41,38 @@ namespace Lively.Views
 
         private void Open_Debug_View_Click(object sender, RoutedEventArgs e)
         {
-            if (debugLogWindow is null)
+            if (debugLogWindow != null)
+                return;
+
+            debugLogWindow = new DebugLog();
+            debugLogWindow.Closed += (s, e) => debugLogWindow = null;
+            debugLogWindow.Show();
+        }
+
+        private void Get_Help_Click(object sender, RoutedEventArgs e)
+        {
+            LinkUtil.OpenBrowser("https://github.com/rocksdanister/lively/wiki/Common-Problems");
+        }
+
+        private void Grid_Overlay_Click(object sender, RoutedEventArgs e)
+        {
+            if (gridOverlay is null)
             {
-                debugLogWindow = new DebugLog();
-                debugLogWindow.Closed += (s, e) => debugLogWindow = null;
-                debugLogWindow.Show();
+                GridOverlyButton.Content = "Grid Overlay [ON]";
+                gridOverlay = new WindowCoverageDebugOverlay();
+                gridOverlay.Show();
+            }
+            else
+            {
+                GridOverlyButton.Content = "Grid Overlay [OFF]";
+                gridOverlay.Close();
+                gridOverlay = null;
             }
         }
 
-        private void Get_Help_Click(object sender, RoutedEventArgs e) =>
-            LinkUtil.OpenBrowser("https://github.com/rocksdanister/lively/wiki/Common-Problems");
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            gridOverlay?.Close();
+        }
     }
 }

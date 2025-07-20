@@ -1,42 +1,42 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Reflection;
-using System.Text;
+﻿using Lively.Common;
+using System;
 using System.IO;
+using System.Reflection;
 using System.Threading.Tasks;
-using System.Windows;
 using Windows.ApplicationModel;
-using Lively.Common;
 
 namespace Lively.Helpers
 {
     public static class WindowsStartup
     {
-        private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
-
-        public async static Task SetStartup(bool setStartup)
+        public async static Task<StartupTaskState> TrySetStartup(bool isStartWithWindow)
         {
-            if (Constants.ApplicationType.IsMSIX)
+            var result = StartupTaskState.Disabled;
+            try
             {
-                await SetStartupTask(setStartup);
+                if (Constants.ApplicationType.IsMSIX)
+                    result = await SetStartupTask(isStartWithWindow);
+                else
+                    SetStartupRegistry(isStartWithWindow);
             }
-            else
+            catch
             {
-                SetStartupRegistry(setStartup);
+                return result;
             }
+            return result;
         }
 
         /// <summary>
         /// Adds startup entry in registry under application name "livelywpf", current user ONLY. (Does not require admin rights).
         /// </summary>
-        /// <param name="setStartup">Add or delete entry.</param>
-        private static void SetStartupRegistry(bool setStartup = false)
+        /// <param name="isStartWithWindows">Add or delete entry.</param>
+        private static void SetStartupRegistry(bool isStartWithWindows = false)
         {
             Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
             Assembly curAssembly = Assembly.GetExecutingAssembly();
             try
             {
-                if (setStartup)
+                if (isStartWithWindows)
                 {
                     key.SetValue(curAssembly.GetName().Name, "\"" + Path.ChangeExtension(curAssembly.Location, ".exe") + "\"");
                 }
@@ -52,53 +52,45 @@ namespace Lively.Helpers
         }
 
         //ref: https://docs.microsoft.com/en-us/uwp/api/windows.applicationmodel.startuptask?view=winrt-19041
-        private async static Task SetStartupTask(bool setStartup = false)
+        private async static Task<StartupTaskState> SetStartupTask(bool isStartWithWindows = false)
         {
             // Pass the task ID you specified in the appxmanifest file
             StartupTask startupTask = await StartupTask.GetAsync("AppStartup");
-            switch (startupTask.State)
+            var startupState = startupTask.State;
+            switch (startupState)
             {
                 case StartupTaskState.Disabled:
-                    Logger.Info("Startup is disabled");
-                    // Task is disabled but can be enabled.
-                    // ensure that you are on a UI thread when you call RequestEnableAsync()
-                    if (setStartup)
                     {
-                        StartupTaskState newState = await startupTask.RequestEnableAsync();
-                        Logger.Info("Request to enable startup " + newState);
+                        // Task is disabled but can be enabled.
+                        // ensure that you are on a UI thread when you call RequestEnableAsync()
+                        if (isStartWithWindows)
+                            startupState = await startupTask.RequestEnableAsync();
                     }
                     break;
                 case StartupTaskState.DisabledByUser:
-                    // Task is disabled and user must enable it manually.
-                    if (setStartup)
                     {
-                        await Task.Run(() => MessageBox.Show("You have disabled this app's ability to run " +
-                            "as soon as you sign in, but if you change your mind, " +
-                            "you can enable this in the Startup tab in Task Manager.",
-                            "Lively Wallpaper",
-                            MessageBoxButton.OK));
+                        // Task is disabled and user must enable it manually.
                     }
                     break;
                 case StartupTaskState.DisabledByPolicy:
-                    Logger.Error("Startup disabled by group policy, or not supported on this device");
+                    {
+                        // Startup disabled by group policy, or not supported on this device.
+                    }
                     break;
                 case StartupTaskState.Enabled:
-                    Logger.Info("Startup is enabled.");
-                    if (!setStartup)
                     {
-                        startupTask.Disable();
-                        Logger.Info("Request to disable startup");
+                        if (!isStartWithWindows)
+                            startupTask.Disable();
                     }
                     break;
                     default:
-                    if (setStartup)
                     {
-                        Logger.Info("Startup state default, possibly different value.");
-                        StartupTaskState newState = await startupTask.RequestEnableAsync();
-                        Logger.Info("Request to enable startup " + newState);
+                        if (isStartWithWindows)
+                            startupState = await startupTask.RequestEnableAsync();
                     }
                     break;
             }
+            return startupState;
         }
     }
 }

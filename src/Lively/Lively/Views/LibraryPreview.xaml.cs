@@ -1,225 +1,30 @@
-﻿using Lively.Common;
-using Lively.Common.Helpers;
+﻿using Lively.Common.Helpers;
 using Lively.Common.Helpers.Pinvoke;
 using Lively.Core;
-using Lively.Helpers;
-using Lively.Services;
+using Lively.Extensions;
 using Lively.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Runtime.InteropServices;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Threading;
 
 namespace Lively.Views
 {
-    public interface ILibraryPreview
+    public partial class LibraryPreview : Window
     {
-        /// <summary>
-        /// Exit and detach wallpaper (will abort if Capture is running.)
-        /// </summary>
-        public void Exit();
-        /// <summary>
-        /// Capture thumbnail every 3 seconds.
-        /// </summary>
-        /// <param name="savePath"></param>
-        public void StartThumbnailCaptureLoop(string savePath);
-        /// <summary>
-        /// Create thumbnail and preview gif 
-        /// </summary>
-        /// <param name="savePath"></param>
-        public void StartCapture(string savePath);
-        /// <summary>
-        /// Wallpaper is attached to window and ready for capture.
-        /// </summary>
-        event EventHandler WallpaperAttached;
-        /// <summary>
-        /// New thumbnail file ready.
-        /// </summary>
-        event EventHandler<string> ThumbnailUpdated;
-        /// <summary>
-        /// New preview gif ready.
-        /// </summary>
-        event EventHandler<string> PreviewUpdated;
-        /// <summary>
-        /// Progress of operation, from 0 - 100.
-        /// </summary>
-        event EventHandler<double> CaptureProgress;
-    }
-
-    /// <summary>
-    /// Interaction logic for LibraryPreview.xaml
-    /// </summary>
-    public partial class LibraryPreview : Window, ILibraryPreview
-    {
-        public event EventHandler<string> ThumbnailUpdated;
-        public event EventHandler<string> PreviewUpdated;
-        public event EventHandler<double> CaptureProgress;
-        public event EventHandler WallpaperAttached;
-
-        private bool _processing = false;
-        private string thumbnailPathTemp;
-        private string tmpThumbCaptureLoopPath;
-        private readonly WallpaperType wallpaperType;
-        private readonly IntPtr wallpaperHwnd;
-        private readonly DispatcherTimer thumbnailCaptureTimer = new DispatcherTimer();
-        //Good values: 1. 30c,120s 2. 15c, 90s
-        private readonly int gifAnimationDelay = 1000 * 1 / 30; //in milliseconds (1/fps)
-        private readonly int gifSaveAnimationDelay = 1000 * 1 / 120;
-        private readonly int gifTotalFrames = 60;
-        private readonly IUserSettingsService userSettings;
+        private readonly LibraryPreviewViewModel viewModel;
 
         public LibraryPreview(IWallpaper wallpaper)
         {
-            userSettings = App.Services.GetRequiredService<IUserSettingsService>();
-
-            var vm = new LibraryPreviewViewModel(this, wallpaper);
-            this.DataContext = vm;
-            this.Closed += vm.OnWindowClosed;
-            wallpaperHwnd = wallpaper.Handle;
-            wallpaperType = wallpaper.Category;
-
             InitializeComponent();
-            PreviewKeyDown += (s, e) => { if (e.Key == Key.Escape) this.Close(); };
+            this.viewModel = App.Services.GetRequiredService<LibraryPreviewViewModel>();
+            this.DataContext = viewModel;
+            this.viewModel.Wallpaper = wallpaper;
+            this.viewModel.OnWindowCloseRequested += ViewModel_OnWindowCloseRequested;
+            this.viewModel.LoadModel(wallpaper.Model.LivelyInfo);
         }
-
-        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
-        {
-            if (_processing)
-            {
-                e.Cancel = true;
-                //ModernWpf.Controls.Primitives.FlyoutBase.ShowAttachedFlyout(PreviewBorder);
-                return;
-            }
-
-            thumbnailCaptureTimer?.Stop();
-            try
-            {
-                //deleting temporary thumbnail file if any..
-                File.Delete(tmpThumbCaptureLoopPath);
-            }
-            catch { }
-
-            //detach wallpaper window from this dialogue.
-            WindowUtil.SetParentSafe(wallpaperHwnd, IntPtr.Zero);
-        }
-
-        private void Window_Loaded(object sender, RoutedEventArgs e)
-        {
-            //attach wp hwnd to border ui element.
-            WpfUtil.SetProgramToFramework(this, wallpaperHwnd, PreviewBorder);
-            //refocus window to allow keyboard input.
-            this.Activate();
-            WallpaperAttached?.Invoke(this, null);
-        }
-
-        private void CaptureLoop(object sender, EventArgs e)
-        {
-            var currThumbPath = Path.Combine(thumbnailPathTemp, Path.ChangeExtension(Path.GetRandomFileName(), ".jpg"));
-            if (File.Exists(tmpThumbCaptureLoopPath))
-            {
-                if (wallpaperType == WallpaperType.picture)
-                    return;
-
-                try
-                {
-                    File.Delete(tmpThumbCaptureLoopPath);
-                }
-                catch
-                {
-                    thumbnailCaptureTimer.Stop();
-                }
-            }
-
-            Rect previewPanelPos = WpfUtil.GetAbsolutePlacement(PreviewBorder, true);
-            Size previewPanelSize = WpfUtil.GetElementPixelSize(PreviewBorder);
-
-            //thumbnail capture
-            CaptureScreen.CopyScreen(
-                currThumbPath,
-               (int)previewPanelPos.Left,
-               (int)previewPanelPos.Top,
-               (int)previewPanelSize.Width,
-               (int)previewPanelSize.Height);
-
-            ThumbnailUpdated?.Invoke(this, currThumbPath);
-            tmpThumbCaptureLoopPath = currThumbPath;
-        }
-
-        private async void CapturePreview(string saveDirectory)
-        {
-            _processing = true;
-            thumbnailCaptureTimer?.Stop();
-            taskbarItemInfo.ProgressState = System.Windows.Shell.TaskbarItemProgressState.Normal;
-            Rect previewPanelPos = WpfUtil.GetAbsolutePlacement(PreviewBorder, true);
-            Size previewPanelSize = WpfUtil.GetElementPixelSize(PreviewBorder);
-
-            //wait before capturing thumbnail..incase wallpaper is not loaded yet.
-            await Task.Delay(100);
-
-            var thumbFilePath = Path.Combine(saveDirectory, Path.ChangeExtension(Path.GetRandomFileName(), ".jpg"));
-            //final thumbnail capture..
-            CaptureScreen.CopyScreen(
-               thumbFilePath,
-               (int)previewPanelPos.Left,
-               (int)previewPanelPos.Top,
-               (int)previewPanelSize.Width,
-               (int)previewPanelSize.Height);
-            ThumbnailUpdated?.Invoke(this, thumbFilePath);
-
-            //preview clip (animated gif file).
-            if (userSettings.Settings.GifCapture && wallpaperType != WallpaperType.picture)
-            {
-                var previewFilePath = Path.Combine(saveDirectory, Path.ChangeExtension(Path.GetRandomFileName(), ".gif"));
-                previewPanelPos = WpfUtil.GetAbsolutePlacement(PreviewBorder, true);
-                await CaptureScreen.CaptureGif(
-                       previewFilePath,
-                       (int)previewPanelPos.Left,
-                       (int)previewPanelPos.Top,
-                       (int)previewPanelPos.Width,
-                       (int)previewPanelPos.Height,
-                       gifAnimationDelay,
-                       gifSaveAnimationDelay,
-                       gifTotalFrames,
-                       new Progress<int>(percent => CaptureProgress?.Invoke(this, percent - 1)));
-                PreviewUpdated?.Invoke(this, previewFilePath);
-            }
-            _processing = false;
-            CaptureProgress?.Invoke(this, 100);
-        }
-
-        #region interface methods
-
-        public void Exit()
-        {
-            this.Close();
-        }
-
-        public void StartCapture(string savePath)
-        {
-            if (_processing)
-                return;
-
-            CapturePreview(savePath);
-        }
-
-        public void StartThumbnailCaptureLoop(string savePath)
-        {
-            thumbnailPathTemp = savePath;
-            //capture thumbnail every few seconds while user is shown wallpaper metadata preview.
-            thumbnailCaptureTimer.Tick += new EventHandler(CaptureLoop);
-            thumbnailCaptureTimer.Interval = new TimeSpan(0, 0, 0, 0, 3000);
-            thumbnailCaptureTimer.Start();
-        }
-
-        #endregion //interface methods
-
-        #region window move/resize lock
 
         protected override void OnSourceInitialized(EventArgs e)
         {
@@ -228,11 +33,63 @@ namespace Lively.Views
             source.AddHook(WndProc);
         }
 
-        //prevent window resize and move during recording.
-        //ref: https://stackoverflow.com/questions/3419909/how-do-i-lock-a-wpf-window-so-it-can-not-be-moved-resized-minimized-maximized
+        private void ViewModel_OnWindowCloseRequested(object sender, bool success)
+        {
+            this.DialogResult = success;
+            this.Close();
+        }
+
+        private async void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Update capture parameters
+            viewModel.CapturePosition = PreviewBorder.GetAbsolutePlacement(true);
+            viewModel.CaptureArea = PreviewBorder.GetElementPixelSize();
+
+            // Attach wp hwnd to border ui element.
+            this.SetProgramToFramework(viewModel.Wallpaper.Handle, PreviewBorder);
+            // Refocus window to allow keyboard input.
+            this.Activate();
+
+            // Subscribing after Window loaded for framework elements to be initialized.
+            this.LocationChanged += Window_LocationChanged;
+        }
+
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (viewModel.IsProcessing)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            // Detach wallpaper window from this dialogue.
+            WindowUtil.SetParentSafe(viewModel.Wallpaper.Handle, IntPtr.Zero);
+            // Move outside visibile region.
+            NativeMethods.SetWindowPos(viewModel.Wallpaper.Handle, 1, -9999, 0, 0, 0, 0x0002);
+        }
+
+        private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+            {
+                // To clean up resources if any.
+                viewModel.CancelCommand.Execute(null);
+            }
+        }
+
+        private void Window_LocationChanged(object sender, EventArgs e)
+        {
+            // Update capture parameters
+            // Note: Framework elements needs to be initialized for these calls.
+            viewModel.CapturePosition = PreviewBorder.GetAbsolutePlacement(true);
+            viewModel.CaptureArea = PreviewBorder.GetElementPixelSize();
+        }
+
+        // Prevent window resize and move during recording.
+        // Ref: https://stackoverflow.com/questions/3419909/how-do-i-lock-a-wpf-window-so-it-can-not-be-moved-resized-minimized-maximized
         public IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
-            if (msg == (int)NativeMethods.WM.WINDOWPOSCHANGING && _processing)
+            if (msg == (int)NativeMethods.WM.WINDOWPOSCHANGING && viewModel.IsProcessing)
             {
                 var wp = Marshal.PtrToStructure<NativeMethods.WINDOWPOS>(lParam);
                 wp.flags |= (int)NativeMethods.SetWindowPosFlags.SWP_NOMOVE | (int)NativeMethods.SetWindowPosFlags.SWP_NOSIZE;
@@ -240,7 +97,5 @@ namespace Lively.Views
             }
             return IntPtr.Zero;
         }
-
-        #endregion //window move/resize lock
     }
 }

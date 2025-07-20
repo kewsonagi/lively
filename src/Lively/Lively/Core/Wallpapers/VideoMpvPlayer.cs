@@ -1,23 +1,25 @@
 ﻿using ImageMagick;
 using Lively.Common;
-using Lively.Common.API;
+using Lively.Common.Exceptions;
+using Lively.Common.Extensions;
 using Lively.Common.Helpers;
 using Lively.Common.Helpers.IPC;
-using Lively.Common.Helpers.Pinvoke;
 using Lively.Common.Helpers.Shell;
 using Lively.Common.Helpers.Storage;
 using Lively.Models;
+using Lively.Models.Enums;
+using Lively.Models.LivelyControls;
+using Lively.Models.Message;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Lively.Common.Extensions;
 
 namespace Lively.Core.Wallpapers
 {
@@ -43,10 +45,12 @@ namespace Lively.Core.Wallpapers
         private Task<IntPtr> processWaitTask;
         private readonly int timeOut;
         private readonly string ipcServerName;
-        private bool _isVideoStopped;
-        private JObject livelyPropertiesData;
+        private bool isVideoStopped;
         private static int globalCount;
         private readonly int uniqueId;
+        private int? exitCode;
+
+        public event EventHandler Exited;
 
         public string LivelyPropertyCopyPath { get; }
 
@@ -70,85 +74,66 @@ namespace Lively.Core.Wallpapers
             LibraryModel model,
             DisplayMonitor display,
             string livelyPropertyPath,
-            WallpaperScaler scaler = WallpaperScaler.fill,
             bool hwAccel = true,
             bool onScreenControl = false,
+            VideoColorSpace colorSpace = VideoColorSpace.auto,
             StreamQualitySuggestion streamQuality = StreamQualitySuggestion.Highest)
         {
             LivelyPropertyCopyPath = livelyPropertyPath;
 
-            if (LivelyPropertyCopyPath != null)
-            {
-                try
-                {
-                    livelyPropertiesData = JsonUtil.ReadJObject(LivelyPropertyCopyPath);
-                }
-                catch (Exception e)
-                {
-                    Logger.Error(e.ToString());
-                }
-            }
-
-            var scalerArg = scaler switch
-            {
-                WallpaperScaler.none => "--video-unscaled=yes",
-                WallpaperScaler.fill => "--keepaspect=no",
-                WallpaperScaler.uniform => "--keepaspect=yes",
-                WallpaperScaler.uniformFill => "--panscan=1.0",
-                //WallpaperScaler.auto => "--keepaspect-window=no",
-                _ => "--keepaspect=no",
-            };
             ipcServerName = "mpvsocket" + Path.GetRandomFileName();
             var configDir = GetConfigDir();
 
             var cmdArgs = new StringBuilder();
-            //startup volume will be 0
+            // Startup volume will be 0
             cmdArgs.Append("--volume=0 ");
-            //disable window decorations
-            //cmdArgs.Append("--no-border ");
-            //alternative: --loop-file=inf
+            // Disable progress message, ref: https://mpv.io/manual/master/#options-msg-level
+            cmdArgs.Append("--msg-level=all=info ");
+            // Alternative: --loop-file=inf
             cmdArgs.Append("--loop-file ");
-            //do not close after media end
+            // Do not close after media end
             cmdArgs.Append("--keep-open ");
-            //open window at (-9999,0)
+            //Open window at (-9999,0)
             cmdArgs.Append("--geometry=-9999:0 ");
-            //always create gui window
+            // Always create gui window
             cmdArgs.Append("--force-window=yes ");
-            //don't move the window when clicking
+            // Don't move the window when clicking
             cmdArgs.Append("--no-window-dragging ");
-            //don't hide cursor after sometime.
+            // Don't hide cursor after sometime.
             cmdArgs.Append("--cursor-autohide=no ");
-            //start without focused
+            // Start without focused
             cmdArgs.Append("--window-minimized=yes ");
-            //allow windows screensaver
+            // Allow windows screensaver
             cmdArgs.Append("--stop-screensaver=no ");
-            //disable mpv default (built-in) key bindings
+            //Disable mpv default (built-in) key bindings
             cmdArgs.Append("--input-default-bindings=no ");
-            //video stretch algorithm
-            cmdArgs.Append(scalerArg + " ");
-            //on-screen-controller visibility
+            // Win11 24H2 and new mpv builds alignment fix, ref: https://github.com/rocksdanister/lively/issues/2415
+            cmdArgs.Append(!onScreenControl ? "--no-border " : " ");
+            // Permit mpv to receive pointer events reported by the video output driver. Necessary to use the OSC, or to select the buttons in DVD menus. 
+            cmdArgs.Append(!onScreenControl ? "--input-cursor=no " : " ");
+            // On-screen-controller visibility
             cmdArgs.Append(!onScreenControl ? "--no-osc " : " ");
-            //alternative: --input-ipc-server=\\.\pipe\
+            // Alternative: --input-ipc-server=\\.\pipe\
             cmdArgs.Append("--input-ipc-server=" + ipcServerName + " ");
-            //integer scaler for sharpness
+            // Integer scaler for sharpness
             cmdArgs.Append(model.LivelyInfo.Type == WallpaperType.gif ? "--scale=nearest " : " ");
-            //gpu decode preference
+            // GPU decode preference
             cmdArgs.Append(hwAccel ? "--hwdec=auto-safe " : "--hwdec=no ");
-            //avoid global config file %APPDATA%\mpv\mpv.conf
+            // Set color space.
+            cmdArgs.Append($"--d3d11-output-csp={GetMpvD3D11ColorSpace(colorSpace)} ");
+            // Avoid global config file %APPDATA%\mpv\mpv.conf
             cmdArgs.Append(configDir is not null ? "--config-dir=" + "\"" + configDir + "\" " : "--no-config ");
-            //screenshot location, important read: https://mpv.io/manual/master/#pseudo-gui-mode
-            cmdArgs.Append("--screenshot-template=" + "\"" + Path.Combine(Constants.CommonPaths.TempDir, ipcServerName) + "\" --screenshot-format=jpg ");
-            //file or online video stream path
+            // File or online video stream path
             cmdArgs.Append(model.LivelyInfo.Type == WallpaperType.videostream ? GetYtDlMpvArg(streamQuality, path) : "\"" + path + "\"");
 
-            ProcessStartInfo start = new ProcessStartInfo
+            var start = new ProcessStartInfo
             {
-                FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "mpv", "mpv.exe"),
+                FileName = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Constants.PlayerPartialPaths.MpvPath),
                 UseShellExecute = false,
                 RedirectStandardError = false,
                 RedirectStandardInput = false,
                 RedirectStandardOutput = true,
-                WorkingDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "mpv"),
+                WorkingDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Constants.PlayerPartialPaths.MpvDir),
                 Arguments = cmdArgs.ToString(),
             };
 
@@ -167,32 +152,21 @@ namespace Lively.Core.Wallpapers
             uniqueId = globalCount++;
         }
 
-        private static string GetConfigDir()
-        {
-            //Priority list of configuration directories
-            string[] dirs = {
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "mpv", "portable_config"),
-                Path.Combine(Constants.CommonPaths.TempVideoDir, "portable_config") 
-            };
-            return dirs.FirstOrDefault(x => Directory.Exists(x));
-        }
-
         public async void Close()
         {
             ctsProcessWait.TaskWaitCancel();
             while (!processWaitTask.IsTaskWaitCompleted())
                 await Task.Delay(1);
 
-            //Not reliable, app may refuse to close(open dialogue window.. etc)
-            //Proc.CloseMainWindow();
-            Terminate();
+            // Proc.CloseMainWindow() does not work?
+            SendMessage("{\"command\":[\"quit\"]}\n");
         }
 
         public void Play()
         {
-            if (_isVideoStopped)
+            if (isVideoStopped)
             {
-                _isVideoStopped = false;
+                isVideoStopped = false;
                 //is this always the correct channel for main video?
                 SendMessage("{\"command\":[\"set_property\",\"vid\",1]}\n");
             }
@@ -204,9 +178,9 @@ namespace Lively.Core.Wallpapers
             SendMessage("{\"command\":[\"set_property\",\"pause\",true]}\n");
         }
 
-        public void Stop()
+        private void Stop()
         {
-            _isVideoStopped = true;
+            isVideoStopped = true;
             //video=no disable video but audio can still be played,
             //which is useful for 'play audio only' option in the future.
             SendMessage("{\"command\":[\"set_property\",\"vid\",\"no\"]}\n");
@@ -247,17 +221,44 @@ namespace Lively.Core.Wallpapers
             }
         }
 
+        private void SetLivelyProperties(string propertyPath)
+        {
+            try
+            {
+                LivelyPropertyUtil.LoadProperty(propertyPath, (control) =>
+                {
+                    switch (control)
+                    {
+                        case SliderModel sliderModel:
+                            SendMessage(GetMpvCommand("set_property", sliderModel.Name, sliderModel.Value.ToString()));
+                            break;
+                        case CheckboxModel checkbox:
+                            SendMessage(GetMpvCommand("set_property", checkbox.Name, checkbox.Value));
+                            break;
+                        case ScalerDropdownModel scalerDropdown:
+                            var scaler = (WallpaperScaler)scalerDropdown.Value;
+                            UpdateScaler(scaler);
+                            break;
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex);
+            }
+        }
+
         public async Task ScreenCapture(string filePath)
         {
             if (Category == WallpaperType.gif)
             {
                 await Task.Run(() =>
                 {
-                    //read first frame of gif image
+                    // Read first frame of gif image
                     using var image = new MagickImage(Model.FilePath);
                     if (image.Width < 1920)
                     {
-                        //if the image is too small then resize to min: 1080p using integer scaling for sharpness.
+                        // If the image is too small then resize to min: 1080p using integer scaling for sharpness.
                         image.FilterType = FilterType.Point;
                         image.Thumbnail(new Percentage(100 * 1920 / image.Width));
                     }
@@ -267,69 +268,38 @@ namespace Lively.Core.Wallpapers
             else
             {
                 var tcs = new TaskCompletionSource<bool>();
-                var imgPath = Path.Combine(Constants.CommonPaths.TempDir, ipcServerName + ".jpg");
-                //monitor directory for screenshot, mpv only outputs message before capturing screenshot..
-                using var watcher = new FileSystemWatcher();
-                watcher.Path = Constants.CommonPaths.TempDir;
-                watcher.NotifyFilter = NotifyFilters.LastWrite;
-                watcher.Filter = "*.jpg";
-                watcher.Changed += (s, e) =>
+                void LocalOutputDataReceived(object sender, DataReceivedEventArgs e)
                 {
-                    if (Path.GetFileName(e.FullPath) == Path.GetFileName(imgPath) && e.ChangeType == WatcherChangeTypes.Changed)
-                    {
-                        //I was unable to set screenshot template via ipc :/
-                        File.Move(imgPath, Path.GetExtension(filePath) != ".jpg" ? filePath + ".jpg" : filePath, true);
-                        tcs.SetResult(true);
-                    }
-                };
-                watcher.EnableRaisingEvents = true;
-                //timeout, cancel after interval..
-                using var timer = new System.Windows.Forms.Timer()
-                {
-                    Enabled = true,
-                    Interval = 10000, //10sec
-                };
-                timer.Tick += (s, e) =>
-                {
-                    //time elapsed..
-                    tcs.SetResult(false);
-                };
-                //request mpv to take screenshot (default is jpg)..
-                SendMessage("{\"command\":[\"screenshot\",\"video\"]}\n");
-                await tcs.Task;
-            }
-        }
+                    if (e.Data is null) 
+                        return;
 
-        private void SetPlaybackProperties(JObject livelyProperty)
-        {
-            try
-            {
-                string msg;
-                foreach (var item in livelyProperty)
-                {
-                    string uiElement = item.Value["type"].ToString();
-                    if (!uiElement.Equals("button", StringComparison.OrdinalIgnoreCase) && !uiElement.Equals("label", StringComparison.OrdinalIgnoreCase))
+                    if (e.Data.Contains("Screenshot:"))
                     {
-                        msg = null;
-                        if (uiElement.Equals("slider", StringComparison.OrdinalIgnoreCase))
+                        // Screenshot: 'path'
+                        var match = Regex.Match(e.Data, @"Screenshot: '([^']+)'");
+                        if (match.Success && match.Groups[1].Value.Equals(filePath, StringComparison.OrdinalIgnoreCase))
                         {
-                            msg = GetMpvCommand("set_property", item.Key, (string)item.Value["value"]);
-                        }
-                        else if (uiElement.Equals("checkbox", StringComparison.OrdinalIgnoreCase))
-                        {
-                            msg = GetMpvCommand("set_property", item.Key, (bool)item.Value["value"]);
-                        }
-
-                        if (msg != null)
-                        {
-                            PipeClient.SendMessage(ipcServerName, msg);
+                            Proc.OutputDataReceived -= LocalOutputDataReceived;
+                            tcs.TrySetResult(true);
                         }
                     }
                 }
-            }
-            catch 
-            { 
-                //todo
+                Proc.OutputDataReceived += LocalOutputDataReceived;
+
+                // Save screenshot
+                SendMessage(GetMpvCommand("screenshot-to-file", filePath));
+
+                // Timeout
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                using (cts.Token.Register(() => 
+                {
+                    if (!IsExited)
+                        Proc.OutputDataReceived -= LocalOutputDataReceived;
+
+                    tcs.TrySetResult(false);
+                }))
+
+                await tcs.Task;
             }
         }
 
@@ -344,32 +314,47 @@ namespace Lively.Core.Wallpapers
                 Proc.OutputDataReceived += Proc_OutputDataReceived;
                 Proc.Start();
                 Proc.BeginOutputReadLine();
+
                 processWaitTask = Proc.WaitForProcesWindow(timeOut, ctsProcessWait.Token, true);
                 this.Handle = await processWaitTask;
-                if (Handle.Equals(IntPtr.Zero)) {
-                    throw new InvalidOperationException(Properties.Resources.LivelyExceptionGeneral);
-                }
-                else
-                {
-                    //Program ready!
-                    //TaskView crash fix
-                    WindowUtil.BorderlessWinStyle(Handle);
-                    WindowUtil.RemoveWindowFromTaskbar(Handle);
 
-                    //Restore livelyproperties.json settings
-                    SetPlaybackProperties(livelyPropertiesData);
-                    //Wait a bit for properties to apply.
-                    //Todo: check ipc mgs and do this properly.
-                    await Task.Delay(69);
-                    IsLoaded = true;
-                }
+                if (Handle.Equals(IntPtr.Zero))
+                    throw new InvalidOperationException("Process window handle is null.");
+
+                //Program ready!
+                //TaskView crash fix
+                WindowUtil.BorderlessWinStyle(Handle);
+                WindowUtil.RemoveWindowFromTaskbar(Handle);
+
+                //Restore livelyproperties.json settings
+                SetLivelyProperties(LivelyPropertyCopyPath);
+                //Wait a bit for properties to apply.
+                //Todo: check ipc mgs and do this properly.
+                await Task.Delay(69);
+                IsLoaded = true;
             }
             catch (Exception)
             {
-                Terminate();
+                if (IsExited) {
+                    throw GetMpvException(exitCode);
+                }
+                else 
+                {
+                    Terminate();
 
-                throw;
+                    throw;
+                }
             }
+        }
+
+        private void Proc_Exited(object sender, EventArgs e)
+        {
+            exitCode = Proc?.ExitCode;
+            Logger.Info($"Mpv{uniqueId}: Process exited with exit code: {exitCode}");
+            Proc.OutputDataReceived -= Proc_OutputDataReceived;
+            Proc?.Dispose();
+            IsExited = true;
+            Exited?.Invoke(this, EventArgs.Empty);
         }
 
         private void Proc_OutputDataReceived(object sender, DataReceivedEventArgs e)
@@ -380,14 +365,6 @@ namespace Lively.Core.Wallpapers
             }
         }
 
-        private void Proc_Exited(object sender, EventArgs e)
-        {
-            Proc.OutputDataReceived -= Proc_OutputDataReceived;
-            Proc?.Dispose();
-            DesktopUtil.RefreshDesktop();
-            IsExited = true;
-        }
-
         public void Terminate()
         {
             try
@@ -395,7 +372,6 @@ namespace Lively.Core.Wallpapers
                 Proc.Kill();
             }
             catch { }
-            DesktopUtil.RefreshDesktop();
         }
 
         private void SendMessage(string msg)
@@ -418,38 +394,34 @@ namespace Lively.Core.Wallpapers
                 switch (obj.Type)
                 {
                     case MessageType.lp_slider:
-                        var sl = (LivelySlider)obj;
-                        if ((sl.Step % 1) != 0)
                         {
-                            msg = GetMpvCommand("set_property", sl.Name, sl.Value);
-                        }
-                        else
-                        {
-                            //mpv is strongly typed; sending decimal value for integer commands fails..
-                            msg = GetMpvCommand("set_property", sl.Name, Convert.ToInt32(sl.Value));
+                            var sl = (LivelySlider)obj;
+                            if ((sl.Step % 1) != 0)
+                            {
+                                msg = GetMpvCommand("set_property", sl.Name, sl.Value);
+                            }
+                            else
+                            {
+                                //mpv is strongly typed; sending decimal value for integer commands fails..
+                                msg = GetMpvCommand("set_property", sl.Name, Convert.ToInt32(sl.Value));
+                            }
                         }
                         break;
                     case MessageType.lp_chekbox:
-                        var chk = (LivelyCheckbox)obj;
-                        msg = GetMpvCommand("set_property", chk.Name, chk.Value);
+                        {
+                            var chk = (LivelyCheckbox)obj;
+                            msg = GetMpvCommand("set_property", chk.Name, chk.Value);
+                        }
                         break;
                     case MessageType.lp_button:
-                        var btn = (LivelyButton)obj;
-                        if (btn.IsDefault)
                         {
-                            try
+                            var btn = (LivelyButton)obj;
+                            if (btn.IsDefault)
                             {
-                                //load new file.
-                                livelyPropertiesData = JsonUtil.ReadJObject(LivelyPropertyCopyPath);
-                                //restore new property values.
-                                SetPlaybackProperties(livelyPropertiesData);
+                                SetLivelyProperties(LivelyPropertyCopyPath);
                             }
-                            catch (Exception e)
-                            {
-                                Logger.Error(e.ToString());
-                            }
+                            else { } //unused
                         }
-                        else { } //unused
                         break;
                     case MessageType.lp_dropdown:
                         //todo
@@ -463,6 +435,13 @@ namespace Lively.Core.Wallpapers
                     case MessageType.lp_fdropdown:
                         //todo
                         break;
+                    case MessageType.lp_dropdown_scaler:
+                        {
+                            var sl = (LivelyDropdownScaler)obj;
+                            var scaler = (WallpaperScaler)sl.Value;
+                            UpdateScaler(scaler);
+                        }
+                        break;
                 }
 
                 if (msg != null)
@@ -475,6 +454,32 @@ namespace Lively.Core.Wallpapers
                 Logger.Error("Mpv{0}: Slider double -> int overlow", uniqueId); 
             }
             catch { }
+        }
+
+        // Ref: https://github.com/rocksdanister/lively/issues/2194
+        private void UpdateScaler(WallpaperScaler scaler)
+        {
+            switch (scaler)
+            {
+                case WallpaperScaler.none:
+                    SendMessage(GetMpvCommand("set_property", "keepaspect", "yes"));
+                    SendMessage(GetMpvCommand("set_property", "video-unscaled", "yes"));
+                    break;
+                case WallpaperScaler.fill:
+                    SendMessage(GetMpvCommand("set_property", "video-unscaled", "no"));
+                    SendMessage(GetMpvCommand("set_property", "keepaspect", "no"));
+                    break;
+                case WallpaperScaler.uniform:
+                    SendMessage(GetMpvCommand("set_property", "panscan", "0.0"));
+                    SendMessage(GetMpvCommand("set_property", "video-unscaled", "no"));
+                    SendMessage(GetMpvCommand("set_property", "keepaspect", "yes"));
+                    break;
+                case WallpaperScaler.uniformFill:
+                    SendMessage(GetMpvCommand("set_property", "video-unscaled", "no"));
+                    SendMessage(GetMpvCommand("set_property", "keepaspect", "yes"));
+                    SendMessage(GetMpvCommand("set_property", "panscan", "1.0"));
+                    break;
+            }
         }
 
         #region mpv util
@@ -491,7 +496,7 @@ namespace Lively.Core.Wallpapers
         /// </summary>
         /// <param name="parameters"></param>
         /// <returns></returns>
-        private string GetMpvCommand(params object[] parameters)
+        private static string GetMpvCommand(params object[] parameters)
         {
             var obj = new MpvCommand();
             obj.Command.AddRange(parameters);
@@ -503,7 +508,7 @@ namespace Lively.Core.Wallpapers
         /// </summary>
         /// <param name="parameters"></param>
         /// <returns></returns>
-        private string GetMpvCommandStrb(params object[] parameters)
+        private static string GetMpvCommandStrb(params object[] parameters)
         {
             var script = new StringBuilder();
             script.Append("{\"command\":[");
@@ -517,6 +522,40 @@ namespace Lively.Core.Wallpapers
             }
             script.Append("]}\n");
             return script.ToString();
+        }
+
+        private static string GetConfigDir()
+        {
+            //Priority list of configuration directories
+            string[] dirs = {
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "plugins", "mpv", "portable_config"),
+                Path.Combine(Constants.CommonPaths.TempVideoDir, "portable_config")
+            };
+            return dirs.FirstOrDefault(x => Directory.Exists(x));
+        }
+
+        private static string GetMpvD3D11ColorSpace(VideoColorSpace color)
+        {
+            return color switch
+            {
+                VideoColorSpace.auto => "auto",
+                VideoColorSpace.srgb => "srgb",
+                VideoColorSpace.linear => "linear",
+                VideoColorSpace.pq => "pq",
+                VideoColorSpace.bt2020 => "bt.2020",
+                _ => throw new ArgumentOutOfRangeException(nameof(color), $"Unsupported color space: {color}")
+            };
+        }
+
+        // Ref: https://mpv.io/manual/master/#exit-codes
+        private static Exception GetMpvException(int? exitCode)
+        {
+            return exitCode switch
+            {
+                1 => new WallpaperPluginException("Error initializing mpv. This is also returned if unknown options are passed to mpv."),
+                2 or 3 => new WallpaperFileException("The file passed to mpv couldn't be played."),
+                _ => new InvalidOperationException(Properties.Resources.LivelyExceptionGeneral),
+            };
         }
 
         private static string GetYtDlMpvArg(StreamQualitySuggestion qualitySuggestion, string link)

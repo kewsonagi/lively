@@ -1,6 +1,5 @@
-﻿using Lively.Common;
+﻿using Lively.Models.Enums;
 using System;
-using System.Globalization;
 using System.IO;
 
 namespace Lively.Models
@@ -8,6 +7,7 @@ namespace Lively.Models
     public class SettingsModel
     {
         public string AppVersion { get; set; }
+        public string AppPreviousVersion { get; set; }
         public string Language { get; set; }
         public bool Startup { get; set; }
         /// <summary>
@@ -21,13 +21,13 @@ namespace Lively.Models
         public bool WaterMarkTile { get; set; }
         public bool IsFirstRun { get; set; }
         public bool ControlPanelOpened { get; set; }
-        public AppRulesEnum AppFocusPause { get; set; }
+        public AppRules AppFocusPause { get; set; }
 
-        public AppRulesEnum AppFullscreenPause { get; set; }
-        public AppRulesEnum BatteryPause { get; set; }
-        public AppRulesEnum RemoteDesktopPause { get; set; }
-        public AppRulesEnum PowerSaveModePause { get; set; }
-        public DisplayPauseEnum DisplayPauseSettings { get; set; }
+        public AppRules AppFullscreenPause { get; set; }
+        public AppRules BatteryPause { get; set; }
+        public AppRules RemoteDesktopPause { get; set; }
+        public AppRules PowerSaveModePause { get; set; }
+        public DisplayPause DisplayPauseSettings { get; set; }
         public ProcessMonitorAlgorithm ProcessMonitorAlgorithm { get; set; }
         /// <summary>
         /// Show animatd library tiles.
@@ -107,13 +107,25 @@ namespace Lively.Models
         /// </summary>
         public bool DesktopAutoWallpaper { get; set; }
         public TaskbarTheme SystemTaskbarTheme { get; set; }
+        public ScreensaverType ScreensaverType { get; set; }
+        public WallpaperArrangement ScreensaverArragement { get; set; }
         public ScreensaverIdleTime ScreensaverIdleDelay { get; set; }
         public bool ScreensaverOledWarning { get; set; }
         public bool ScreensaverEmptyScreenShowBlack { get; set; }
         public bool ScreensaverLockOnResume { get; set; }
+        public int ScreensaverGlobalVolume { get; set; }
+        public bool ScreensaverFadeIn { get; set; }
+        public int ScreensaverGracePeriod { get; set; }
+        public int ScreensaverLockWaitTimeout { get; set; }
         public bool KeepAwakeUI { get; set; }
         public bool RememberSelectedScreen { get; set; }
         public bool IsUpdated { get; set; }
+        public bool IsUpdatedNotify { get; set; }
+
+        /// <summary>
+        /// Notify user if plugin is missing.
+        /// </summary>
+        public bool IsScreensaverPluginNotify { get; set; }
         public string ApplicationThemeBackgroundPath { get; set; }
         public AppThemeBackground ApplicationThemeBackground { get; set; }
         public int ThemeBundleVersion { get; set; }
@@ -121,24 +133,34 @@ namespace Lively.Models
         /// Time in seconds between taskbar restart (hinting system instability) to stop Lively.
         /// </summary>
         public int TaskbarCrashTimeOutDelay { get; set; }
+        public VideoColorSpace VideoD3D11OutputColorSpace { get; set; }
+        public double ProcessMonitorGridTileCoverageThreshold { get; set; }
+        public int ProcessMonitorGridTileSize { get; set; }
 
         public SettingsModel()
         {
             SavedURL = "https://www.youtube.com/watch?v=aqz-KE-bpKQ";
-            ProcessMonitorAlgorithm = ProcessMonitorAlgorithm.foreground;
+            ProcessMonitorAlgorithm = ProcessMonitorAlgorithm.grid;
             WallpaperArrangement = WallpaperArrangement.per;
+            ScreensaverArragement = WallpaperArrangement.per;
+            ScreensaverType = ScreensaverType.wallpaper;
+            ScreensaverGracePeriod = 5;
+            ScreensaverLockWaitTimeout = 5;
             AppVersion = System.Reflection.Assembly.GetEntryAssembly().GetName().Version.ToString();
+            AppPreviousVersion = string.Empty;
             Startup = true;
             IsFirstRun = true;
             ControlPanelOpened = false;
-            AppFocusPause = AppRulesEnum.ignore;
-            AppFullscreenPause = AppRulesEnum.pause;
-            BatteryPause = AppRulesEnum.ignore;
+            AppFocusPause = AppRules.ignore;
+            AppFullscreenPause = AppRules.pause;
+            BatteryPause = AppRules.ignore;
             VideoPlayer = LivelyMediaPlayer.mpv;
             VideoPlayerHwAccel = true;
-            WebBrowser = LivelyWebBrowser.cef;
+            WebBrowser = LivelyWebBrowser.webview2;
             GifPlayer = LivelyGifPlayer.mpv;
             PicturePlayer = LivelyPicturePlayer.mpv;
+            ProcessMonitorGridTileCoverageThreshold = 0.05;
+            ProcessMonitorGridTileSize = 50;
 
             WallpaperWaitTime = 20000; // 20sec
             ProcessTimerInterval = 500; //reduce to 250 for quicker response.
@@ -164,7 +186,7 @@ namespace Lively.Models
             DisplayIdentification = DisplayIdentificationMode.deviceId;
             //SelectedDisplay = ScreenHelper.GetPrimaryScreen();
             UIMode = LivelyGUIState.normal;
-            WallpaperDir = Path.Combine(Constants.CommonPaths.AppDataDir, "Library");
+            WallpaperDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lively Wallpaper", "Library");
             WallpaperDirMoveExistingWallpaperNewDir = true;
             SysTrayIcon = true;
             WebDebugPort = string.Empty;
@@ -179,8 +201,8 @@ namespace Lively.Models
             DebugMenu = false;
             TestBuild = false;
             ApplicationTheme = AppTheme.Dark;
-            RemoteDesktopPause = AppRulesEnum.pause;
-            PowerSaveModePause = AppRulesEnum.ignore;
+            RemoteDesktopPause = AppRules.pause;
+            PowerSaveModePause = AppRules.ignore;
             LockScreenAutoWallpaper = false;
             DesktopAutoWallpaper = false;
             SystemTaskbarTheme = TaskbarTheme.none;
@@ -188,21 +210,18 @@ namespace Lively.Models
             ScreensaverOledWarning = false;
             ScreensaverEmptyScreenShowBlack = true;
             ScreensaverLockOnResume = false;
+            ScreensaverGlobalVolume = 0;
+            ScreensaverFadeIn = true;
             KeepAwakeUI = false;
             RememberSelectedScreen = true;
             IsUpdated = false;
+            IsUpdatedNotify = false;
+            IsScreensaverPluginNotify = true;
             ApplicationThemeBackgroundPath = null;
             ApplicationThemeBackground = AppThemeBackground.default_mica;
             TaskbarCrashTimeOutDelay = 30;
-
-            try
-            {
-                Language = CultureInfo.CurrentUICulture.Name;
-            }
-            catch (ArgumentNullException)
-            {
-                Language = "en";
-            }
+            Language = string.Empty;
+            VideoD3D11OutputColorSpace = VideoColorSpace.srgb;
         }
     }
 }

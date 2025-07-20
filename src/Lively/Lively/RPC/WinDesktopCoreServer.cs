@@ -1,31 +1,30 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Google.Protobuf.WellKnownTypes;
-using System.Threading.Tasks;
-using Lively.Models;
-using System.IO;
-using Lively.Common.Helpers.Storage;
 using Lively.Common;
-using Microsoft.Extensions.DependencyInjection;
+using Lively.Common.Exceptions;
+using Lively.Common.Factories;
+using Lively.Common.Helpers.Files;
+using Lively.Common.JsonConverters;
+using Lively.Common.Services;
 using Lively.Core;
 using Lively.Core.Display;
+using Lively.Extensions;
+using Lively.Factories;
+using Lively.Grpc.Common.Proto.Desktop;
+using Lively.Models.Enums;
+using Lively.Models.Message;
+using Lively.Views;
+using Newtonsoft.Json;
+using NLog;
+using System;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
-using System.Threading;
-using Lively.Services;
-using Lively.Grpc.Common.Proto.Desktop;
-using Newtonsoft.Json;
-using Lively.Common.API;
-using Lively.Common.Helpers;
-using Lively.Helpers;
-using Lively.Views;
-using static Lively.Common.Errors;
-using System.Reflection;
-using NLog;
 
 namespace Lively.RPC
 {
@@ -33,19 +32,28 @@ namespace Lively.RPC
     {
         private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
+        private readonly IRunnerService runner;
         private readonly IDesktopCore desktopCore;
+        private readonly IRunnerService runnerService;
         private readonly IDisplayManager displayManager;
         private readonly IUserSettingsService userSettings;
         private readonly IWallpaperLibraryFactory wallpaperLibraryFactory;
+        private readonly IWallpaperPluginFactory wallpaperFactory;
 
         public WinDesktopCoreServer(IDesktopCore desktopCore,
+            IRunnerService runner,
+            IRunnerService runnerService,
             IDisplayManager displayManager,
             IUserSettingsService userSettings,
+            IWallpaperPluginFactory wallpaperFactory,
             IWallpaperLibraryFactory wallpaperLibraryFactory)
         {
+            this.runner = runner;
             this.desktopCore = desktopCore;
+            this.runnerService = runnerService;
             this.displayManager = displayManager;
             this.userSettings = userSettings;
+            this.wallpaperFactory = wallpaperFactory;
             this.wallpaperLibraryFactory = wallpaperLibraryFactory;
         }
 
@@ -64,7 +72,6 @@ namespace Lively.RPC
             try
             {
                 var lm = wallpaperLibraryFactory.CreateFromDirectory(request.LivelyInfoPath);
-                lm.DataType = (LibraryItemType)(int)request.Type;
                 var display = displayManager.DisplayMonitors.FirstOrDefault(x => x.DeviceId == request.MonitorId);
                 await desktopCore.SetWallpaperAsync(lm, display ?? displayManager.PrimaryDisplayMonitor);
             }
@@ -74,6 +81,101 @@ namespace Lively.RPC
             }
 
             return await Task.FromResult(new Empty());
+        }
+
+        public override async Task<CreateWallpaperResponse> CreateWallpaper(CreateWallpaperRequest request, ServerCallContext context)
+        {
+            bool isSuccess = false;
+            IWallpaper wallpaper = null;
+            WallpaperErrorResponse error = null;
+            string wallpaperDirectory = Path.Combine(userSettings.Settings.WallpaperDir, Constants.CommonPartialPaths.WallpaperInstallTempDir, Path.GetRandomFileName());
+            try
+            {
+                runner.SetBusyUI(true);
+                _ = wallpaperLibraryFactory.CreateWallpaperPackage(request.FilePath, wallpaperDirectory, (WallpaperType)request.Category);
+                var model = wallpaperLibraryFactory.CreateFromDirectory(wallpaperDirectory);
+                wallpaper = wallpaperFactory.CreateWallpaper(model, displayManager.PrimaryDisplayMonitor, WallpaperArrangement.per, userSettings, false);
+
+                // Closing since absolute location can be changed to relative.
+                desktopCore.CloseWallpaper(model);
+                await wallpaper.ShowAsync();
+                isSuccess = await ShowWallpaperDialog(wallpaper);
+            }
+            catch (Exception ex)
+            {
+                error = new()
+                {
+                    ErrorMsg = ex.Message ?? string.Empty,
+                    Error = GetError(ex)
+                };
+                Logger.Error(ex);
+            }
+            finally
+            {
+                wallpaper?.Close();
+                runner.SetBusyUI(false);
+                if (!isSuccess)
+                {
+                    try
+                    {
+                        await FileUtil.TryDeleteDirectoryAsync(wallpaperDirectory, 500, 0);
+                        if (wallpaper?.LivelyPropertyCopyPath != null)
+                        {
+                            var propertiesDirectory = Directory.GetParent(Path.GetDirectoryName(wallpaper.LivelyPropertyCopyPath)).FullName;
+                            await FileUtil.TryDeleteDirectoryAsync(propertiesDirectory, 0, 500);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Error(ex);
+                    }
+                }
+            }
+
+            return await Task.FromResult(new CreateWallpaperResponse()
+            {
+                IsSuccess = isSuccess,
+                LivelyInfoPath = wallpaperDirectory ?? string.Empty,
+                Error = error
+            });
+        }
+
+        public override async Task<EditWallpaperResponse> EditWallpaper(EditWallpaperRequest request, ServerCallContext context)
+        {
+            var isSuccess = false;
+            IWallpaper wallpaper = null;
+            WallpaperErrorResponse error = null;
+            try
+            {
+                runner.SetBusyUI(true);
+                var model = wallpaperLibraryFactory.CreateFromDirectory(request.LivelyInfoPath);
+                wallpaper = wallpaperFactory.CreateWallpaper(model, displayManager.PrimaryDisplayMonitor, WallpaperArrangement.per, userSettings, false);
+
+                // Closing since absolute location can be changed to relative.
+                desktopCore.CloseWallpaper(model);
+                await wallpaper.ShowAsync();
+                isSuccess = await ShowWallpaperDialog(wallpaper);
+            }
+            catch (Exception ex)
+            {
+                error = new()
+                {
+                    ErrorMsg = ex.Message ?? string.Empty,
+                    Error = GetError(ex)
+                };
+                Logger.Error(ex);
+            }
+            finally 
+            {
+                wallpaper?.Close();
+                runner.SetBusyUI(false);
+            }
+
+            return await Task.FromResult(new EditWallpaperResponse()
+            {
+                IsSuccess = isSuccess,
+                Error = error
+            });
         }
 
         public override async Task GetWallpapers(Empty _, IServerStreamWriter<GetWallpapersResponse> responseStream, ServerCallContext context)
@@ -129,11 +231,16 @@ namespace Lively.RPC
                 var lm = wallpaperLibraryFactory.CreateFromDirectory(request.LivelyInfoPath);
                 _ = Application.Current.Dispatcher.Invoke(DispatcherPriority.Normal, new ThreadStart(delegate
                   {
-                      new WallpaperPreview(lm)
-                      {
+                      var preview = new WallpaperPreview(lm, userSettings.Settings.SelectedDisplay, userSettings.Settings.WallpaperArrangement) {
+                          // Default incase UI not running.
                           WindowStartupLocation = WindowStartupLocation.CenterScreen,
-                          Topmost = true,
-                      }.Show();
+                      };
+                      preview.Show();
+                      // Center preview relative to UI.
+                      if (runnerService.IsVisibleUI)
+                          preview.CenterToWindow(runnerService.HwndUI);
+                      // Re-activate incase launching wallpaper loses focus.
+                      preview.Activate();
                   }));
             }
             catch (Exception e)
@@ -145,7 +252,7 @@ namespace Lively.RPC
 
         public override Task<Empty> CloseAllWallpapers(CloseAllWallpapersRequest request, ServerCallContext context)
         {
-            desktopCore.CloseAllWallpapers(request.Terminate);
+            desktopCore.CloseAllWallpapers();
             return Task.FromResult(new Empty());
         }
 
@@ -154,7 +261,7 @@ namespace Lively.RPC
             var display = displayManager.DisplayMonitors.FirstOrDefault(x => x.DeviceId == request.MonitorId);
             if (display != null)
             {
-                desktopCore.CloseWallpaper(display, request.Terminate);
+                desktopCore.CloseWallpaper(display);
             }
             return Task.FromResult(new Empty());
         }
@@ -164,7 +271,7 @@ namespace Lively.RPC
             try
             {
                 var lm = wallpaperLibraryFactory.CreateFromDirectory(request.LivelyInfoPath);
-                desktopCore.CloseWallpaper(lm, request.Terminate);
+                desktopCore.CloseWallpaper(lm);
             }
             catch (Exception e)
             {
@@ -178,7 +285,7 @@ namespace Lively.RPC
         {
             try
             {
-                desktopCore.CloseWallpaper((WallpaperType)((int)request.Category), request.Terminate);
+                desktopCore.CloseWallpaper((WallpaperType)((int)request.Category));
             }
             catch (Exception e)
             {
@@ -218,50 +325,6 @@ namespace Lively.RPC
             }
         }
 
-        public override async Task SubscribeUpdateWallpaper(Empty _, IServerStreamWriter<UpdateWallpaperResponse> responseStream, ServerCallContext context)
-        {
-            try
-            {
-                while (!context.CancellationToken.IsCancellationRequested)
-                {
-                    UpdateWallpaperResponse resp = null;
-                    var tcs = new TaskCompletionSource<bool>();
-                    desktopCore.WallpaperUpdated += WallpaperUpdated;
-                    void WallpaperUpdated(object s, WallpaperUpdateArgs e)
-                    {
-                        resp = new UpdateWallpaperResponse()
-                        {
-                            Title = e.Info.Title ?? string.Empty,
-                            Description = e.Info.Desc ?? string.Empty,
-                            Website = e.Info.Contact ?? string.Empty,
-                            Author = e.Info.Author ?? string.Empty,
-                            ThumbnailPath = e.Info.Thumbnail ?? string.Empty,
-                            PreviewPath = e.Info.Preview ?? string.Empty,
-                            LivelyInfoPath = e.InfoPath ?? string.Empty,
-                            Type = (UpdateWallpaperCategory)(int)e.Category,
-                            IsAbsolutePath = e.Info.IsAbsolutePath,
-                        };
-                        desktopCore.WallpaperUpdated -= WallpaperUpdated;
-                        tcs.TrySetResult(true);
-                    }
-                    using var item = context.CancellationToken.Register(() => { tcs.TrySetResult(false); });
-                    await tcs.Task;
-
-                    if (context.CancellationToken.IsCancellationRequested)
-                    {
-                        desktopCore.WallpaperUpdated -= WallpaperUpdated;
-                        break;
-                    }
-
-                    await responseStream.WriteAsync(resp);
-                }
-            }
-            catch (Exception e)
-            {
-                Logger.Error(e);
-            }
-        }
-
         public override async Task SubscribeWallpaperError(Empty _, IServerStreamWriter<WallpaperErrorResponse> responseStream, ServerCallContext context)
         {
             try
@@ -276,17 +339,7 @@ namespace Lively.RPC
                         desktopCore.WallpaperError -= WallpaperError;
 
                         resp.ErrorMsg = e.Message ?? string.Empty;
-                        resp.Error = e switch
-                        {
-                            WorkerWException _ => ErrorCategory.Workerw,
-                            WallpaperNotAllowedException _ => ErrorCategory.WallpaperNotAllowed,
-                            WallpaperNotFoundException _ => ErrorCategory.WallpaperNotFound,
-                            WallpaperPluginException _ => ErrorCategory.WallpaperPluginFail,
-                            WallpaperPluginNotFoundException _ => ErrorCategory.WallpaperPluginNotFound,
-                            WallpaperPluginMediaCodecException _ => ErrorCategory.WallpaperPluginMediaCodecMissing,
-                            ScreenNotFoundException _ => ErrorCategory.ScreenNotFound,
-                            _ => ErrorCategory.General,
-                        };
+                        resp.Error = GetError(e);
                         tcs.TrySetResult(true);
                     }
                     using var item = context.CancellationToken.Register(() => { tcs.TrySetResult(false); });
@@ -357,6 +410,45 @@ namespace Lively.RPC
                 Logger.Error(e);
             }
             return await Task.FromResult(new Empty());
+        }
+
+
+        private async Task<bool> ShowWallpaperDialog(IWallpaper wallpaper)
+        {
+            bool? success = false;
+            await Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new ThreadStart(delegate
+            {
+                var previewWindow = new LibraryPreview(wallpaper)
+                {
+                    Topmost = true,
+                    ShowActivated = true,
+                    WindowStartupLocation = WindowStartupLocation.CenterScreen
+                };
+                previewWindow.Loaded += (s, e) =>
+                {
+                    if (runner.IsVisibleUI)
+                        previewWindow.CenterToWindow(runner.HwndUI);
+                };
+                success = previewWindow.ShowDialog();
+            }));
+            return success ?? false;
+        }
+
+        private static ErrorCategory GetError(Exception ex)
+        {
+            return ex switch
+            {
+                WorkerWException _ => ErrorCategory.Workerw,
+                WallpaperNotAllowedException _ => ErrorCategory.WallpaperNotAllowed,
+                WallpaperNotFoundException _ => ErrorCategory.WallpaperNotFound,
+                WallpaperPluginException _ => ErrorCategory.WallpaperPluginFail,
+                WallpaperPluginNotFoundException _ => ErrorCategory.WallpaperPluginNotFound,
+                WallpaperPluginMediaCodecException _ => ErrorCategory.WallpaperPluginMediaCodecMissing,
+                ScreenNotFoundException _ => ErrorCategory.ScreenNotFound,
+                WallpaperWebView2NotFoundException _ => ErrorCategory.WallpaperWebview2NotFound,
+                WallpaperFileException _ => ErrorCategory.WallpaperFileError,
+                _ => ErrorCategory.General,
+            };
         }
     }
 }

@@ -118,22 +118,22 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="AudioFocused.Content" xml:space="preserve">
-    <value>Reproducir el audio solo cuando el escritorio esté enfocado</value>
+    <value>Reproduce audio solo cuando el escritorio esté enfocado</value>
   </data>
   <data name="Audio.Description" xml:space="preserve">
-    <value>Volumen de todos los fondos</value>
+    <value>Nivel de volumen de todos los fondos.</value>
   </data>
   <data name="Audio.Header" xml:space="preserve">
     <value>Volumen General</value>
   </data>
-  <data name="AudioGroup.Header" xml:space="preserve">
+  <data name="AudioGroup.Text" xml:space="preserve">
     <value>Sonido</value>
   </data>
   <data name="Community.Description" xml:space="preserve">
     <value>Foro de debate</value>
   </data>
   <data name="Documentation.Description" xml:space="preserve">
-    <value>Documentación de la API y ayuda</value>
+    <value>Documentación de la API y Ayuda</value>
   </data>
   <data name="DescExplorerCrash" xml:space="preserve">
     <value>Lively ha encontrado un error fatal.
@@ -144,7 +144,7 @@
     <value>Se encontró un programa incompatible, tema de la barra de tareas desactivado</value>
   </data>
   <data name="Website.Description" xml:space="preserve">
-    <value>Página web oficial de Lively Wallpaper</value>
+    <value>Sitio web oficial de Lively Wallpaper</value>
   </data>
   <data name="DescOledScreensaverNotice" xml:space="preserve">
     <value>La mayoría de pantallas modernas LCD y LED no sufren de quemado de pantalla, y por esa razón cualquier fondo de pantallas puede ser usado como salva pantallas.
@@ -221,7 +221,7 @@ El objetivo principal del salva pantallas en Lively es ofrecer más posibilidade
     <value>Icono de la bandeja del sistema</value>
   </data>
   <data name="Language.Description" xml:space="preserve">
-    <value>Lively se reiniciará para aplicar el nuevo idioma.</value>
+    <value>Lively se reiniciará para aplicar el nuevo idioma</value>
   </data>
   <data name="Language.Header" xml:space="preserve">
     <value>Idioma</value>
@@ -283,7 +283,7 @@ Si aún no funciona, cierra e inicia Lively nuevamente o reinicia Windows.
   <data name="TextAllFiles" xml:space="preserve">
     <value>Todos los archivos</value>
   </data>
-  <data name="Application.Header" xml:space="preserve">
+  <data name="Application.Text" xml:space="preserve">
     <value>Aplicación</value>
   </data>
   <data name="Attribution.Header" xml:space="preserve">
@@ -296,7 +296,7 @@ Si aún no funciona, cierra e inicia Lively nuevamente o reinicia Windows.
     <value>Regresar</value>
   </data>
   <data name="TextBrowse" xml:space="preserve">
-    <value>Navegar</value>
+    <value>Buscar</value>
   </data>
   <data name="Cancel.Content" xml:space="preserve">
     <value>Cancelar</value>
@@ -340,7 +340,7 @@ Si aún no funciona, cierra e inicia Lively nuevamente o reinicia Windows.
   <data name="DisplayPauseRulePerScreen.Content" xml:space="preserve">
     <value>Por pantalla</value>
   </data>
-  <data name="TextDownload" xml:space="preserve">
+  <data name="TextDownload.Content" xml:space="preserve">
     <value>Descargar</value>
   </data>
   <data name="EditWallpaper.Text" xml:space="preserve">
@@ -376,7 +376,7 @@ Si aún no funciona, cierra e inicia Lively nuevamente o reinicia Windows.
   <data name="TextHours" xml:space="preserve">
     <value>Horas</value>
   </data>
-  <data name="TextInstall" xml:space="preserve">
+  <data name="TextInstall.Content" xml:space="preserve">
     <value>Instalar</value>
   </data>
   <data name="TextKeyboard.Content" xml:space="preserve">
@@ -547,7 +547,7 @@ Si aún no funciona, cierra e inicia Lively nuevamente o reinicia Windows.
   <data name="TextUpdateAvailable" xml:space="preserve">
     <value>¡Actualización disponible!</value>
   </data>
-  <data name="TextUpdateCheck" xml:space="preserve">
+  <data name="TextUpdateCheck.Content" xml:space="preserve">
     <value>Buscar actualizaciones</value>
   </data>
   <data name="TextupdateCheckFail" xml:space="preserve">
@@ -563,7 +563,7 @@ Si aún no funciona, cierra e inicia Lively nuevamente o reinicia Windows.
     <value>Video</value>
   </data>
   <data name="TextWallpaperCommandlineArgs" xml:space="preserve">
-    <value>Intoducir linea de comandos de agumentos (Opcional) .</value>
+    <value>Opciones de lanzamiento</value>
   </data>
   <data name="WallpaperFitFill.Content" xml:space="preserve">
     <value>Rellenar</value>
@@ -577,13 +577,13 @@ Si aún no funciona, cierra e inicia Lively nuevamente o reinicia Windows.
   <data name="WallpaperFitUniformToFill.Content" xml:space="preserve">
     <value>Relleno Uniforme</value>
   </data>
-  <data name="WallpaperLayoutDuplicate.Content" xml:space="preserve">
-    <value>Duplicar el mismo fondo de pantalla</value>
+  <data name="WallpaperLayoutDuplicate.Text" xml:space="preserve">
+    <value>Duplicar</value>
   </data>
-  <data name="WallpaperLayoutPerScreen.Content" xml:space="preserve">
-    <value>Solo la pantalla seleccionada</value>
+  <data name="WallpaperLayoutPerScreen.Text" xml:space="preserve">
+    <value>Pantalla</value>
   </data>
-  <data name="WallpaperLayoutSpan.Content" xml:space="preserve">
+  <data name="WallpaperLayoutSpan.Text" xml:space="preserve">
     <value>Estirar</value>
   </data>
   <data name="WallpaperType.Text" xml:space="preserve">
@@ -827,11 +827,8 @@ Edge es la vista web integrada en Windows 10.</value>
   <data name="ControlPanel.Title" xml:space="preserve">
     <value>Diseño de pantalla</value>
   </data>
-  <data name="TitleScreensaver" xml:space="preserve">
+  <data name="TitleScreensaver.Content" xml:space="preserve">
     <value>Salvapantallas</value>
-  </data>
-  <data name="TitleScreensaverLockOnResume" xml:space="preserve">
-    <value>Al resumir, mostrar pantalla de inicio</value>
   </data>
   <data name="TitleSelectFile" xml:space="preserve">
     <value>Seleccionar Archivo</value>
@@ -858,7 +855,7 @@ Edge es la vista web integrada en Windows 10.</value>
   <data name="TitleStreamWallpaperVideoQuality" xml:space="preserve">
     <value>Calidad de Streams</value>
   </data>
-  <data name="System.Header" xml:space="preserve">
+  <data name="System.Text" xml:space="preserve">
     <value>Sistema</value>
   </data>
   <data name="TaskbarTheme.Header" xml:space="preserve">
@@ -879,8 +876,11 @@ Edge es la vista web integrada en Windows 10.</value>
   <data name="VideoHardwareDecode.Header" xml:space="preserve">
     <value>GPU Decode</value>
   </data>
-  <data name="TitleWallpaper" xml:space="preserve">
-    <value>Fondos de pantalla</value>
+  <data name="TitleWallpaper.Content" xml:space="preserve">
+    <value>Fondo De Pantalla</value>
+  </data>
+  <data name="TitleCustomise.Content" xml:space="preserve">
+    <value>Personalizar</value>
   </data>
   <data name="WallpaperDir.Header" xml:space="preserve">
     <value>Directorio de fondos de pantalla</value>
@@ -897,7 +897,7 @@ Edge es la vista web integrada en Windows 10.</value>
   <data name="WallpaperLayout.Header" xml:space="preserve">
     <value>Disposición de los fondo(s)</value>
   </data>
-  <data name="WallpaperPlaybackGroup.Header" xml:space="preserve">
+  <data name="WallpaperPlaybackGroup.Text" xml:space="preserve">
     <value>Reproducción del Fondo</value>
   </data>
   <data name="TitleWarning" xml:space="preserve">
@@ -921,7 +921,7 @@ Edge es la vista web integrada en Windows 10.</value>
   <data name="FastUI.Header" xml:space="preserve">
     <value>Inicio rápido</value>
   </data>
-  <data name="WallpaperDirGroup.Header" xml:space="preserve">
+  <data name="WallpaperDirGroup.Text" xml:space="preserve">
     <value>Archivos</value>
   </data>
   <data name="AppThemeDark.Content" xml:space="preserve">
@@ -936,13 +936,13 @@ Edge es la vista web integrada en Windows 10.</value>
   <data name="WindowsSettingsColor.Content" xml:space="preserve">
     <value>Ajustes de color de Windows</value>
   </data>
-  <data name="LaptopWallpaperPlaybackGroup.Header" xml:space="preserve">
+  <data name="LaptopWallpaperPlaybackGroup.Text" xml:space="preserve">
     <value>Ordenadores portátiles</value>
   </data>
-  <data name="DeveloperGroup.Header" xml:space="preserve">
+  <data name="DeveloperGroup.Text" xml:space="preserve">
     <value>Desarrollador</value>
   </data>
-  <data name="AppearanceBehaviour.Header" xml:space="preserve">
+  <data name="AppearanceBehaviour.Text" xml:space="preserve">
     <value>Apariencia y comportamiento</value>
   </data>
   <data name="ActiveWallpapers.Label" xml:space="preserve">
@@ -999,11 +999,13 @@ Edge es la vista web integrada en Windows 10.</value>
   <data name="Screensaver.Header" xml:space="preserve">
     <value>Tipo de salvapantalla</value>
   </data>
-  <data name="ScreensaverModeDifferentWallpaper.Content" xml:space="preserve">
-    <value>Configurado por separado</value>
+  <data name="ScreensaverModeDifferentWallpaper.Text" xml:space="preserve">
+    <value>Personalizado</value>
   </data>
-  <data name="ScreensaverModeSameWallpaper.Content" xml:space="preserve">
-    <value>Igual que el fondo de pantalla</value>
+  <data name="ScreensaverModeSameWallpaper.Text" xml:space="preserve">
+    <value>Duplicar Fondo de pantalla 
+Fondo de pantalla espejo
+Espejo de Fondo de pantalla</value>
   </data>
   <data name="ScreensaverPlugin.Title" xml:space="preserve">
     <value>Plug-in requerido</value>
@@ -1120,7 +1122,7 @@ Edge es la vista web integrada en Windows 10.</value>
     <value>Compartir fondo de pantalla</value>
   </data>
   <data name="ExportWallpaperGallery.Text" xml:space="preserve">
-    <value>Exportar desde galería</value>
+    <value>Importar desde galería</value>
   </data>
   <data name="ExportWallpaperLink.Text" xml:space="preserve">
     <value>Copiar enlace</value>
@@ -1179,7 +1181,7 @@ Edge es la vista web integrada en Windows 10.</value>
   <data name="DevelopmentOnHold.Message" xml:space="preserve">
     <value>El desarrollo de esta funcionalidad está detenido</value>
   </data>
-  <data name="WallpaperPluginGroup.Header" xml:space="preserve">
+  <data name="WallpaperPluginGroup.Text" xml:space="preserve">
     <value>Complementos</value>
   </data>
   <data name="AddWallpaperAdvanced.Description" xml:space="preserve">
@@ -1223,5 +1225,50 @@ Edge es la vista web integrada en Windows 10.</value>
   </data>
   <data name="TitleDownload.Content" xml:space="preserve">
     <value>Descargar</value>
+  </data>
+  <data name="TextBecomePatreonMember.Content" xml:space="preserve">
+    <value>Conviertete en un seguidor de Patreon</value>
+  </data>
+  <data name="TextPatreonMembersThankYou.Text" xml:space="preserve">
+    <value>Gracias a todos los miembros que han apoyado al proyecto.</value>
+  </data>
+  <data name="TitlePatreon.Text" xml:space="preserve">
+    <value>Apoyadores de Patreon</value>
+  </data>
+  <data name="SelectScreensaverCustomMode.Text" xml:space="preserve">
+    <value>Seleccione salvapantallas</value>
+  </data>
+  <data name="WebViewRequired.Message" xml:space="preserve">
+    <value>Necesitas tener Microsoft WebView2 instalado para ver este contenido</value>
+  </data>
+  <data name="WebViewRequired.Title" xml:space="preserve">
+    <value>Plug-in requerido</value>
+  </data>
+  <data name="AppMusicExclusion.Description" xml:space="preserve">
+    <value>Seleccionar aplicaciones para excluir de mostrar detalles de música</value>
+  </data>
+  <data name="AppMusicExclusion.Header" xml:space="preserve">
+    <value>Exclusión de aplicación</value>
+  </data>
+  <data name="RestartCommand.Content" xml:space="preserve">
+    <value>Reiniciar</value>
+  </data>
+  <data name="WallpaperMusicGroup.Text" xml:space="preserve">
+    <value>Música</value>
+  </data>
+  <data name="WallpaperRestartRequiredNotify.Message" xml:space="preserve">
+    <value>Es necesario reiniciar el fondo de pantalla para que la configuración surta efecto</value>
+  </data>
+  <data name="LanguageSettingsItemSystemDefault.Content" xml:space="preserve">
+    <value>Same as System</value>
+  </data>
+  <data name="InfoSettingsRestartRequest.Message" xml:space="preserve">
+    <value>Please restart application for settings to take effect.</value>
+  </data>
+  <data name="ScreensaverLockOnResume.Header" xml:space="preserve">
+    <value>Al resumir, mostrar pantalla de inicio</value>
+  </data>
+  <data name="ScreensaverFadeIn.Header" xml:space="preserve">
+    <value>Fade to black before start</value>
   </data>
 </root>

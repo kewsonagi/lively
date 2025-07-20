@@ -37,16 +37,30 @@ namespace Lively.Grpc.Client
             await client.RestartUIAsync(new Empty());
         }
 
+        public async Task RestartUI(string startArgs)
+        {
+            await client.RestartUIWithArgsAsync(new RestartRequest() { StartArgs = startArgs });
+        }
+
         public async Task ShowDebugger()
         {
             await client.ShowDebuggerAsync(new Empty());
         }
 
-        public async Task ScreensaverShow(bool show)
+        public async Task ShowScreensaver(bool isFadeIn)
         {
             await client.ScreensaverAsync(new ScreensaverRequest()
             {
-                State = show ? ScreensaverState.Start : ScreensaverState.Stop,
+                State =ScreensaverState.Start,
+                FadeIn = isFadeIn
+            });
+        }
+
+        public async Task StopScreensaver()
+        {
+            await client.ScreensaverAsync(new ScreensaverRequest()
+            {
+                State = ScreensaverState.Stop
             });
         }
 

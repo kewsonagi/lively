@@ -1,13 +1,11 @@
 ﻿using Google.Protobuf.WellKnownTypes;
-using Grpc.Core;
 using GrpcDotNetNamedPipes;
 using Lively.Common;
 using Lively.Grpc.Common.Proto.Settings;
 using Lively.Models;
+using Lively.Models.Enums;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace Lively.Grpc.Client
@@ -58,7 +56,7 @@ namespace Lively.Grpc.Client
             var resp = client.GetAppRulesSettings(new Empty());
             foreach (var item in resp.AppRules)
             {
-                appRules.Add(new ApplicationRulesModel(item.AppName, (AppRulesEnum)((int)item.Rule)));
+                appRules.Add(new ApplicationRulesModel(item.AppName, (Models.Enums.AppRules)((int)item.Rule)));
             }
             return appRules;
         }
@@ -69,7 +67,7 @@ namespace Lively.Grpc.Client
             var resp = await client.GetAppRulesSettingsAsync(new Empty());
             foreach (var item in resp.AppRules)
             {
-                appRules.Add(new ApplicationRulesModel(item.AppName, (AppRulesEnum)((int)item.Rule)));
+                appRules.Add(new ApplicationRulesModel(item.AppName, (Models.Enums.AppRules)((int)item.Rule)));
             }
             return appRules;
         }
@@ -175,6 +173,8 @@ namespace Lively.Grpc.Client
                 SavedUrl = settings.SavedURL,
                 ProcessMonitorAlogorithm = (ProcessMonitorRule)((int)settings.ProcessMonitorAlgorithm),
                 WallpaperArrangement = (WallpaperArrangementRule)settings.WallpaperArrangement,
+                ScreensaverArrangement = (WallpaperArrangementRule)settings.ScreensaverArragement,
+                ScreensaverType = (ScreensaverTypeRule)settings.ScreensaverType,
                 SelectedDisplay = new GetScreensResponse()
                 {
                     DeviceId = settings.SelectedDisplay.DeviceId,
@@ -182,6 +182,7 @@ namespace Lively.Grpc.Client
                     DisplayName = settings.SelectedDisplay.DisplayName,
                     HMonitor = settings.SelectedDisplay.HMonitor.ToInt32(),
                     IsPrimary = settings.SelectedDisplay.IsPrimary,
+                    Index = settings.SelectedDisplay.Index,
                     WorkingArea = new Rectangle()
                     {
                         X = settings.SelectedDisplay.WorkingArea.X,
@@ -198,12 +199,13 @@ namespace Lively.Grpc.Client
                     }
                 },
                 AppVersion = settings.AppVersion,
+                AppPreviousVersion = settings.AppPreviousVersion,
                 Startup = settings.Startup,
                 IsFirstRun = settings.IsFirstRun,
                 ControlPanelOpened = settings.ControlPanelOpened,
-                AppFocusPause = (AppRules)((int)settings.AppFocusPause),
-                AppFullscreenPause = (AppRules)((int)settings.AppFullscreenPause),
-                BatteryPause = (AppRules)((int)settings.BatteryPause),
+                AppFocusPause = (Common.Proto.Settings.AppRules)((int)settings.AppFocusPause),
+                AppFullscreenPause = (Common.Proto.Settings.AppRules)((int)settings.AppFullscreenPause),
+                BatteryPause = (Common.Proto.Settings.AppRules)((int)settings.BatteryPause),
                 VideoPlayer = (MediaPlayer)((int)settings.VideoPlayer),
                 VideoPlayerHwAccel = settings.VideoPlayerHwAccel,
                 WebBrowser = (WebBrowser)((int)settings.WebBrowser),
@@ -237,8 +239,8 @@ namespace Lively.Grpc.Client
                 DebugMenu = settings.DebugMenu,
                 TestBuild = settings.TestBuild,
                 ApplicationTheme = (Grpc.Common.Proto.Settings.AppTheme)settings.ApplicationTheme,
-                RemoteDesktopPause = (AppRules)settings.RemoteDesktopPause,
-                PowerSaveModePause = (AppRules)settings.PowerSaveModePause,
+                RemoteDesktopPause = (Common.Proto.Settings.AppRules)settings.RemoteDesktopPause,
+                PowerSaveModePause = (Common.Proto.Settings.AppRules)settings.PowerSaveModePause,
                 LockScreenAutoWallpaper = settings.LockScreenAutoWallpaper,
                 DesktopAutoWallpaper = settings.DesktopAutoWallpaper,
                 SystemTaskbarTheme = (Grpc.Common.Proto.Settings.TaskbarTheme)((int)settings.SystemTaskbarTheme),
@@ -251,9 +253,13 @@ namespace Lively.Grpc.Client
                 DisplayPauseSettings = (DisplayPauseRule)settings.DisplayPauseSettings,
                 RememberSelectedScreen = settings.RememberSelectedScreen,
                 Updated = settings.IsUpdated,
+                UpdatedNotify = settings.IsUpdatedNotify,
                 ApplicationThemeBackground = (Common.Proto.Settings.AppThemeBackground)settings.ApplicationThemeBackground,
                 ApplicationThemeBackgroundPath = settings.ApplicationThemeBackgroundPath,
                 ThemeBundleVersion = settings.ThemeBundleVersion,
+                ScreensaverPluginNotify = settings.IsScreensaverPluginNotify,
+                ScreensaverVolumeGlobal = settings.ScreensaverGlobalVolume,
+                ScreensaverFadeIn = settings.ScreensaverFadeIn,
             };
         }
 
@@ -263,6 +269,8 @@ namespace Lively.Grpc.Client
             {
                 SavedURL = settings.SavedUrl,
                 ProcessMonitorAlgorithm = (ProcessMonitorAlgorithm)((int)settings.ProcessMonitorAlogorithm),
+                ScreensaverArragement = (WallpaperArrangement)settings.ScreensaverArrangement,
+                ScreensaverType = (ScreensaverType)settings.ScreensaverType,
                 SelectedDisplay = new DisplayMonitor()
                 {
                     DeviceId = settings.SelectedDisplay.DeviceId,
@@ -270,16 +278,27 @@ namespace Lively.Grpc.Client
                     DeviceName = settings.SelectedDisplay.DeviceName,
                     HMonitor = new IntPtr(settings.SelectedDisplay.HMonitor),
                     IsPrimary = settings.SelectedDisplay.IsPrimary,
-                    Index = settings.SelectedDisplay.Index,
+                    Index = settings.SelectedDisplay.Index,                  
+                    Bounds = new System.Drawing.Rectangle(
+                        settings.SelectedDisplay.Bounds.X,
+                        settings.SelectedDisplay.Bounds.Y,
+                        settings.SelectedDisplay.Bounds.Width,
+                        settings.SelectedDisplay.Bounds.Height),
+                    WorkingArea = new System.Drawing.Rectangle(
+                        settings.SelectedDisplay.WorkingArea.X,
+                        settings.SelectedDisplay.WorkingArea.Y,
+                        settings.SelectedDisplay.WorkingArea.Width,
+                        settings.SelectedDisplay.WorkingArea.Height),
                 },
                 WallpaperArrangement = (WallpaperArrangement)((int)settings.WallpaperArrangement),
                 AppVersion = settings.AppVersion,
+                AppPreviousVersion = settings.AppPreviousVersion,
                 Startup = settings.Startup,
                 IsFirstRun = settings.IsFirstRun,
                 ControlPanelOpened = settings.ControlPanelOpened,
-                AppFocusPause = (AppRulesEnum)((int)settings.AppFocusPause),
-                AppFullscreenPause = (AppRulesEnum)((int)settings.AppFullscreenPause),
-                BatteryPause = (AppRulesEnum)((int)settings.BatteryPause),
+                AppFocusPause = (Models.Enums.AppRules)((int)settings.AppFocusPause),
+                AppFullscreenPause = (Models.Enums.AppRules)((int)settings.AppFullscreenPause),
+                BatteryPause = (Models.Enums.AppRules)((int)settings.BatteryPause),
                 VideoPlayer = (LivelyMediaPlayer)((int)settings.VideoPlayer),
                 VideoPlayerHwAccel = settings.VideoPlayerHwAccel,
                 WebBrowser = (LivelyWebBrowser)((int)settings.WebBrowser),
@@ -287,7 +306,7 @@ namespace Lively.Grpc.Client
                 PicturePlayer = (LivelyPicturePlayer)((int)settings.PicturePlayer),
                 WallpaperWaitTime = settings.WallpaperWaitTime,
                 ProcessTimerInterval = settings.ProcessTimerInterval,
-                StreamQuality = (Lively.Common.StreamQualitySuggestion)((int)settings.StreamQuality),
+                StreamQuality = (Models.Enums.StreamQualitySuggestion)((int)settings.StreamQuality),
                 LivelyZipGenerate = settings.LivelyZipGenerate,
                 ScalerVideo = (WallpaperScaler)((int)settings.ScalerVideo),
                 ScalerGif = (WallpaperScaler)((int)settings.ScalerGif),
@@ -295,7 +314,7 @@ namespace Lively.Grpc.Client
                 MultiFileAutoImport = settings.MultiFileAutoImport,
                 SafeShutdown = settings.SafeShutdown,
                 IsRestart = settings.IsRestart,
-                InputForward = (Lively.Common.InputForwardMode)settings.InputForward,
+                InputForward = (Models.Enums.InputForwardMode)settings.InputForward,
                 MouseInputMovAlways = settings.MouseInputMovAlways,
                 TileSize = settings.TileSize,
                 UIMode = (LivelyGUIState)((int)settings.LivelyGuiRendering),
@@ -312,24 +331,28 @@ namespace Lively.Grpc.Client
                 CefDiskCache = settings.CefDiskCache,
                 DebugMenu = settings.DebugMenu,
                 TestBuild = settings.TestBuild,
-                ApplicationTheme = (Lively.Common.AppTheme)settings.ApplicationTheme,
-                RemoteDesktopPause = (AppRulesEnum)settings.RemoteDesktopPause,
-                PowerSaveModePause = (AppRulesEnum)settings.PowerSaveModePause,
+                ApplicationTheme = (Models.Enums.AppTheme)settings.ApplicationTheme,
+                RemoteDesktopPause = (Models.Enums.AppRules)settings.RemoteDesktopPause,
+                PowerSaveModePause = (Models.Enums.AppRules)settings.PowerSaveModePause,
                 LockScreenAutoWallpaper = settings.LockScreenAutoWallpaper,
                 DesktopAutoWallpaper = settings.DesktopAutoWallpaper,
-                SystemTaskbarTheme = (Lively.Common.TaskbarTheme)settings.SystemTaskbarTheme,
-                ScreensaverIdleDelay = (Lively.Common.ScreensaverIdleTime)((int)settings.ScreensaverIdleWait),
+                SystemTaskbarTheme = (Models.Enums.TaskbarTheme)settings.SystemTaskbarTheme,
+                ScreensaverIdleDelay = (Models.Enums.ScreensaverIdleTime)((int)settings.ScreensaverIdleWait),
                 ScreensaverOledWarning = settings.ScreensaverOledWarning,
                 ScreensaverEmptyScreenShowBlack = settings.ScreensaverEmptyScreenShowBlack,
                 ScreensaverLockOnResume = settings.ScreensaverLockOnResume,
                 Language = settings.Language,
                 KeepAwakeUI = settings.KeepAwakeUi,
-                DisplayPauseSettings = (DisplayPauseEnum)settings.DisplayPauseSettings,
+                DisplayPauseSettings = (DisplayPause)settings.DisplayPauseSettings,
                 RememberSelectedScreen = settings.RememberSelectedScreen,
                 IsUpdated = settings.Updated,
-                ApplicationThemeBackground = (Lively.Common.AppThemeBackground)settings.ApplicationThemeBackground,
+                IsUpdatedNotify = settings.UpdatedNotify,
+                ApplicationThemeBackground = (Models.Enums.AppThemeBackground)settings.ApplicationThemeBackground,
                 ApplicationThemeBackgroundPath = settings.ApplicationThemeBackgroundPath,
                 ThemeBundleVersion = settings.ThemeBundleVersion,
+                IsScreensaverPluginNotify = settings.ScreensaverPluginNotify,
+                ScreensaverGlobalVolume = settings.ScreensaverVolumeGlobal,
+                ScreensaverFadeIn = settings.ScreensaverFadeIn,
             };
         }
 

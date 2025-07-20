@@ -1,20 +1,18 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
+using Lively.Common.Services;
 using Lively.Core.Display;
 using Lively.Grpc.Common.Proto.Settings;
-using Lively.Services;
+using Lively.Helpers;
+using Lively.Models;
+using Lively.Models.Enums;
 using System;
 using System.Collections.Generic;
-using System.Text;
-using Lively.Common;
-using Lively.Models;
 using System.Linq;
-using System.Diagnostics;
-using Lively.Helpers;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
-using System.Threading;
 
 namespace Lively.RPC
 {
@@ -25,7 +23,9 @@ namespace Lively.RPC
         private readonly ITransparentTbService ttbService;
         private readonly IUserSettingsService userSettings;
         private readonly IRunnerService runner;
+        private readonly IResourceService i18n;
         private readonly ISystray sysTray;
+
         private readonly object appRulesWriteLock = new object();
         private readonly object settingsWriteLock = new object();
 
@@ -33,6 +33,7 @@ namespace Lively.RPC
             IUserSettingsService userSettings,
             IRunnerService runner,
             ISystray sysTray,
+            IResourceService i18n,
             ITransparentTbService ttbService)
         {
             this.displayManager = displayManager;
@@ -40,6 +41,7 @@ namespace Lively.RPC
             this.ttbService = ttbService;
             this.sysTray = sysTray;
             this.runner = runner;
+            this.i18n = i18n;
         }
 
         public override Task<AppRulesSettings> GetAppRulesSettings(Empty _, ServerCallContext context)
@@ -50,7 +52,7 @@ namespace Lively.RPC
                 resp.AppRules.Add(new AppRulesDataModel
                 {
                     AppName = app.AppName,
-                    Rule = (AppRules)((int)app.Rule)
+                    Rule = (Grpc.Common.Proto.Settings.AppRules)((int)app.Rule)
                 });
             }
             return Task.FromResult(resp);
@@ -61,7 +63,7 @@ namespace Lively.RPC
             userSettings.AppRules.Clear();
             foreach (var item in req.AppRules)
             {
-                userSettings.AppRules.Add(new ApplicationRulesModel(item.AppName, (AppRulesEnum)(int)item.Rule));
+                userSettings.AppRules.Add(new ApplicationRulesModel(item.AppName, (Models.Enums.AppRules)(int)item.Rule));
             }
 
             try
@@ -79,18 +81,20 @@ namespace Lively.RPC
 
         public override Task<Empty> SetSettings(SettingsDataModel req, ServerCallContext context)
         {
-            bool restartRequired = (Common.AppTheme)req.ApplicationTheme != userSettings.Settings.ApplicationTheme;// || req.Language != userSettings.Settings.Language;
+            bool restartRequired = (Models.Enums.AppTheme)req.ApplicationTheme != userSettings.Settings.ApplicationTheme;// || req.Language != userSettings.Settings.Language;
             if (req.Startup != userSettings.Settings.Startup)
             {
                 userSettings.Settings.Startup = req.Startup;
-                try
+                _ = WindowsStartup.TrySetStartup(userSettings.Settings.Startup);
+            }
+
+            if (req.Language != userSettings.Settings.Language)
+            {
+                userSettings.Settings.Language = req.Language;
+                _ = Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new ThreadStart(delegate
                 {
-                    _ = WindowsStartup.SetStartup(userSettings.Settings.Startup);
-                }
-                catch (Exception e)
-                {
-                    Logger.Error(e);
-                }
+                    i18n.SetCulture(userSettings.Settings.Language);
+                }));
             }
 
             if (req.SysTrayIcon != userSettings.Settings.SysTrayIcon)
@@ -102,17 +106,17 @@ namespace Lively.RPC
                 }));
             }
 
-            if ((Common.TaskbarTheme)req.SystemTaskbarTheme != userSettings.Settings.SystemTaskbarTheme)
+            if ((Models.Enums.TaskbarTheme)req.SystemTaskbarTheme != userSettings.Settings.SystemTaskbarTheme)
             {
-                userSettings.Settings.SystemTaskbarTheme = (Common.TaskbarTheme)req.SystemTaskbarTheme;
+                userSettings.Settings.SystemTaskbarTheme = (Models.Enums.TaskbarTheme)req.SystemTaskbarTheme;
                 ttbService.Start(userSettings.Settings.SystemTaskbarTheme);
             }
 
-            if ((Common.AppTheme)req.ApplicationTheme != userSettings.Settings.ApplicationTheme)
+            if ((Models.Enums.AppTheme)req.ApplicationTheme != userSettings.Settings.ApplicationTheme)
             {
                 _ = Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new ThreadStart(delegate
                 {
-                    App.ChangeTheme((Common.AppTheme)req.ApplicationTheme);
+                    App.ChangeTheme((Models.Enums.AppTheme)req.ApplicationTheme);
                 }));
             }
 
@@ -121,12 +125,15 @@ namespace Lively.RPC
             userSettings.Settings.SelectedDisplay = displayManager.DisplayMonitors.FirstOrDefault(x => req.SelectedDisplay.DeviceId == x.DeviceId) ?? displayManager.PrimaryDisplayMonitor;
             userSettings.Settings.WallpaperArrangement = (WallpaperArrangement)((int)req.WallpaperArrangement);
             userSettings.Settings.AppVersion = req.AppVersion;
+            userSettings.Settings.AppPreviousVersion = req.AppPreviousVersion;
+            userSettings.Settings.ScreensaverType = (ScreensaverType)req.ScreensaverType;
+            userSettings.Settings.ScreensaverArragement = (WallpaperArrangement)req.ScreensaverArrangement;
             //userSettings.Settings.Startup = req.Startup;
             userSettings.Settings.IsFirstRun = req.IsFirstRun;
             userSettings.Settings.ControlPanelOpened = req.ControlPanelOpened;
-            userSettings.Settings.AppFocusPause = (AppRulesEnum)((int)req.AppFocusPause);
-            userSettings.Settings.AppFullscreenPause = (AppRulesEnum)((int)req.AppFullscreenPause);
-            userSettings.Settings.BatteryPause = (AppRulesEnum)((int)req.BatteryPause);
+            userSettings.Settings.AppFocusPause = (Models.Enums.AppRules)((int)req.AppFocusPause);
+            userSettings.Settings.AppFullscreenPause = (Models.Enums.AppRules)((int)req.AppFullscreenPause);
+            userSettings.Settings.BatteryPause = (Models.Enums.AppRules)((int)req.BatteryPause);
             userSettings.Settings.VideoPlayer = (LivelyMediaPlayer)((int)req.VideoPlayer);
             userSettings.Settings.VideoPlayerHwAccel = req.VideoPlayerHwAccel;
             userSettings.Settings.WebBrowser = (LivelyWebBrowser)((int)req.WebBrowser);
@@ -134,7 +141,7 @@ namespace Lively.RPC
             userSettings.Settings.PicturePlayer = (LivelyPicturePlayer)((int)req.PicturePlayer);
             userSettings.Settings.WallpaperWaitTime = req.WallpaperWaitTime;
             userSettings.Settings.ProcessTimerInterval = req.ProcessTimerInterval;
-            userSettings.Settings.StreamQuality = (Common.StreamQualitySuggestion)((int)req.StreamQuality);
+            userSettings.Settings.StreamQuality = (Models.Enums.StreamQualitySuggestion)((int)req.StreamQuality);
             userSettings.Settings.LivelyZipGenerate = req.LivelyZipGenerate;
             userSettings.Settings.ScalerVideo = (WallpaperScaler)((int)req.ScalerVideo);
             userSettings.Settings.ScalerGif = (WallpaperScaler)((int)req.ScalerGif);
@@ -142,7 +149,7 @@ namespace Lively.RPC
             userSettings.Settings.MultiFileAutoImport = req.MultiFileAutoImport;
             userSettings.Settings.SafeShutdown = req.SafeShutdown;
             userSettings.Settings.IsRestart = req.IsRestart;
-            userSettings.Settings.InputForward = (Common.InputForwardMode)req.InputForward;
+            userSettings.Settings.InputForward = (Models.Enums.InputForwardMode)req.InputForward;
             userSettings.Settings.MouseInputMovAlways = req.MouseInputMovAlways;
             userSettings.Settings.TileSize = req.TileSize;
             userSettings.Settings.UIMode = (LivelyGUIState)((int)req.LivelyGuiRendering);
@@ -159,24 +166,27 @@ namespace Lively.RPC
             userSettings.Settings.CefDiskCache = req.CefDiskCache;
             userSettings.Settings.DebugMenu = req.DebugMenu;
             userSettings.Settings.TestBuild = req.TestBuild;
-            userSettings.Settings.ApplicationTheme = (Common.AppTheme)req.ApplicationTheme;
-            userSettings.Settings.RemoteDesktopPause = (AppRulesEnum)req.RemoteDesktopPause;
-            userSettings.Settings.PowerSaveModePause = (AppRulesEnum)req.PowerSaveModePause;
+            userSettings.Settings.ApplicationTheme = (Models.Enums.AppTheme)req.ApplicationTheme;
+            userSettings.Settings.RemoteDesktopPause = (Models.Enums.AppRules)req.RemoteDesktopPause;
+            userSettings.Settings.PowerSaveModePause = (Models.Enums.AppRules)req.PowerSaveModePause;
             userSettings.Settings.LockScreenAutoWallpaper = req.LockScreenAutoWallpaper;
             userSettings.Settings.DesktopAutoWallpaper = req.DesktopAutoWallpaper;
             //userSettings.Settings.SystemTaskbarTheme = (Common.TaskbarTheme)req.SystemTaskbarTheme;
-            userSettings.Settings.ScreensaverIdleDelay = (Common.ScreensaverIdleTime)((int)req.ScreensaverIdleWait);
+            userSettings.Settings.ScreensaverIdleDelay = (Models.Enums.ScreensaverIdleTime)((int)req.ScreensaverIdleWait);
             userSettings.Settings.ScreensaverOledWarning = req.ScreensaverOledWarning;
             userSettings.Settings.ScreensaverEmptyScreenShowBlack = req.ScreensaverEmptyScreenShowBlack;
             userSettings.Settings.ScreensaverLockOnResume = req.ScreensaverLockOnResume;
-            userSettings.Settings.Language = req.Language;
             userSettings.Settings.KeepAwakeUI = req.KeepAwakeUi;
-            userSettings.Settings.DisplayPauseSettings = (DisplayPauseEnum)req.DisplayPauseSettings;
+            userSettings.Settings.DisplayPauseSettings = (DisplayPause)req.DisplayPauseSettings;
             userSettings.Settings.RememberSelectedScreen = req.RememberSelectedScreen;
             userSettings.Settings.IsUpdated = req.Updated;
-            userSettings.Settings.ApplicationThemeBackground = (Common.AppThemeBackground)req.ApplicationThemeBackground;
+            userSettings.Settings.IsUpdatedNotify = req.UpdatedNotify;
+            userSettings.Settings.ApplicationThemeBackground = (Models.Enums.AppThemeBackground)req.ApplicationThemeBackground;
             userSettings.Settings.ApplicationThemeBackgroundPath = req.ApplicationThemeBackgroundPath;
             userSettings.Settings.ThemeBundleVersion = req.ThemeBundleVersion;
+            userSettings.Settings.IsScreensaverPluginNotify = req.ScreensaverPluginNotify;
+            userSettings.Settings.ScreensaverGlobalVolume = req.ScreensaverVolumeGlobal;
+            userSettings.Settings.ScreensaverFadeIn = req.ScreensaverFadeIn;
 
             try
             {
@@ -210,6 +220,7 @@ namespace Lively.RPC
                     DisplayName = settings.SelectedDisplay.DisplayName ?? string.Empty,
                     HMonitor = settings.SelectedDisplay.HMonitor.ToInt32(),
                     IsPrimary = settings.SelectedDisplay.IsPrimary,
+                    Index = settings.SelectedDisplay.Index,
                     WorkingArea = new Rectangle()
                     {
                         X = settings.SelectedDisplay.WorkingArea.X,
@@ -226,12 +237,15 @@ namespace Lively.RPC
                     }
                 },
                 AppVersion = settings.AppVersion,
+                AppPreviousVersion = settings.AppPreviousVersion,
+                ScreensaverArrangement = (WallpaperArrangementRule)settings.ScreensaverArragement,
+                ScreensaverType = (ScreensaverTypeRule)settings.ScreensaverType,
                 Startup = settings.Startup,
                 IsFirstRun = settings.IsFirstRun,
                 ControlPanelOpened = settings.ControlPanelOpened,
-                AppFocusPause = (AppRules)((int)settings.AppFocusPause),
-                AppFullscreenPause = (AppRules)((int)settings.AppFullscreenPause),
-                BatteryPause = (AppRules)((int)settings.BatteryPause),
+                AppFocusPause = (Grpc.Common.Proto.Settings.AppRules)((int)settings.AppFocusPause),
+                AppFullscreenPause = (Grpc.Common.Proto.Settings.AppRules)((int)settings.AppFullscreenPause),
+                BatteryPause = (Grpc.Common.Proto.Settings.AppRules)((int)settings.BatteryPause),
                 VideoPlayer = (MediaPlayer)((int)settings.VideoPlayer),
                 VideoPlayerHwAccel = settings.VideoPlayerHwAccel,
                 WebBrowser = (WebBrowser)((int)settings.WebBrowser),
@@ -265,8 +279,8 @@ namespace Lively.RPC
                 DebugMenu = settings.DebugMenu,
                 TestBuild = settings.TestBuild,
                 ApplicationTheme = (Grpc.Common.Proto.Settings.AppTheme)settings.ApplicationTheme,
-                RemoteDesktopPause = (AppRules)settings.RemoteDesktopPause,
-                PowerSaveModePause = (AppRules)settings.PowerSaveModePause,
+                RemoteDesktopPause = (Grpc.Common.Proto.Settings.AppRules)settings.RemoteDesktopPause,
+                PowerSaveModePause = (Grpc.Common.Proto.Settings.AppRules)settings.PowerSaveModePause,
                 LockScreenAutoWallpaper = settings.LockScreenAutoWallpaper,
                 DesktopAutoWallpaper = settings.DesktopAutoWallpaper,
                 SystemTaskbarTheme = (Grpc.Common.Proto.Settings.TaskbarTheme)((int)settings.SystemTaskbarTheme),
@@ -279,9 +293,13 @@ namespace Lively.RPC
                 DisplayPauseSettings = (DisplayPauseRule)settings.DisplayPauseSettings,
                 RememberSelectedScreen = settings.RememberSelectedScreen,
                 Updated = settings.IsUpdated,
+                UpdatedNotify = settings.IsUpdatedNotify,
                 ApplicationThemeBackground = (Grpc.Common.Proto.Settings.AppThemeBackground)settings.ApplicationThemeBackground,
                 ApplicationThemeBackgroundPath = settings.ApplicationThemeBackgroundPath ?? string.Empty,
                 ThemeBundleVersion = settings.ThemeBundleVersion,
+                ScreensaverPluginNotify = settings.IsScreensaverPluginNotify,
+                ScreensaverVolumeGlobal = settings.ScreensaverGlobalVolume,
+                ScreensaverFadeIn = settings.ScreensaverFadeIn,
             };
             return Task.FromResult(resp);
         }

@@ -1,5 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using Lively.Models;
+using System.Drawing;
 
 namespace Lively.Models
 {
@@ -15,6 +15,12 @@ namespace Lively.Models
 
         [ObservableProperty]
         private DisplayMonitor screen;
+
+        [ObservableProperty]
+        private Rectangle normalizedBounds;
+
+        [ObservableProperty]
+        private bool isSelected;
 
         [ObservableProperty]
         private string screenImagePath;

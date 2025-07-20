@@ -1,13 +1,11 @@
 ﻿using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Lively.Automation;
+using Lively.Commandline;
+using Lively.Common.Services;
 using Lively.Grpc.Common.Proto.Commands;
-using Lively.Services;
 using Lively.Views;
 using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -19,14 +17,19 @@ namespace Lively.RPC
     {
         private DebugLog debugLogWindow;
         private readonly IRunnerService runner;
+        private readonly IUserSettingsService userSettings;
         private readonly IScreensaverService screensaver;
         private readonly ICommandHandler commandHandler;
 
-        public CommandsServer(IRunnerService runner, IScreensaverService screensaver, ICommandHandler commandHandler)
+        public CommandsServer(IRunnerService runner,
+            IScreensaverService screensaver,
+            ICommandHandler commandHandler,
+            IUserSettingsService userSettings)
         {
             this.runner = runner;
             this.screensaver = screensaver;
             this.commandHandler = commandHandler;
+            this.userSettings = userSettings;
         }
 
         public override Task<Empty> ShowUI(Empty _, ServerCallContext context)
@@ -47,6 +50,12 @@ namespace Lively.RPC
             return Task.FromResult(new Empty());
         }
 
+        public override Task<Empty> RestartUIWithArgs(RestartRequest request, ServerCallContext context)
+        {
+            runner.RestartUI(request.StartArgs);
+            return Task.FromResult(new Empty());
+        }
+
         public override Task<Empty> ShowDebugger(Empty _, ServerCallContext context)
         {
             Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new ThreadStart(delegate
@@ -61,15 +70,15 @@ namespace Lively.RPC
             return Task.FromResult(new Empty());
         }
 
-        public override Task<Empty> Screensaver(ScreensaverRequest request, ServerCallContext context)
+        public override async Task<Empty> Screensaver(ScreensaverRequest request, ServerCallContext context)
         {
             switch (request.State)
             {
                 case ScreensaverState.Start:
-                    screensaver.Start();
+                    await screensaver.StartAsync(request.FadeIn);
                     break;
                 case ScreensaverState.Stop:
-                    screensaver.Stop();
+                    await screensaver.StopAsync();
                     break;
                 case ScreensaverState.Preview:
                     _ = Application.Current.Dispatcher.BeginInvoke(DispatcherPriority.Normal, new ThreadStart(delegate
@@ -82,7 +91,7 @@ namespace Lively.RPC
                     runner.ShowUI();
                     break;
             }
-            return Task.FromResult(new Empty());
+            return await Task.FromResult(new Empty());
         }
 
         public override Task<Empty> ShutDown(Empty _, ServerCallContext context)
@@ -93,7 +102,7 @@ namespace Lively.RPC
             }
             finally
             {
-                App.ShutDown();
+                App.QuitApp();
             }
         }
 

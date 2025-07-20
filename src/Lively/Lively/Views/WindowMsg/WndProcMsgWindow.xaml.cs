@@ -1,8 +1,7 @@
-﻿using Lively.Common;
-using Lively.Common.Helpers.Pinvoke;
+﻿using Lively.Common.Helpers.Pinvoke;
+using Lively.Common.Services;
 using Lively.Core;
 using Lively.Core.Display;
-using Lively.Services;
 using System;
 using System.Threading.Tasks;
 using System.Windows;
@@ -62,7 +61,7 @@ namespace Lively.Views.WindowMsg
                         _ = Task.Run(() => MessageBox.Show(Properties.Resources.DescExplorerCrash,
                                 $"{Properties.Resources.TitleAppName} - {Properties.Resources.TextError}",
                                 MessageBoxButton.OK, MessageBoxImage.Error));
-                        desktopCore.CloseAllWallpapers(true);
+                        desktopCore.CloseAllWallpapers();
                         desktopCore.ResetWallpaperAsync();
                     }
                     prevCrashTime = DateTime.Now;
@@ -73,6 +72,7 @@ namespace Lively.Views.WindowMsg
             {
                 if (lParam != IntPtr.Zero && lParam == (IntPtr)0x00000001) // ENDSESSION_CLOSEAPP
                 {
+                    App.ReleaseMutex();
                     //The app is being queried if it can close for an update.
                     _ = NativeMethods.RegisterApplicationRestart(
                         null,
@@ -86,7 +86,7 @@ namespace Lively.Views.WindowMsg
             else if (msg == (uint)NativeMethods.WM.ENDSESSION)
             {
                 //Gracefully close app.
-                App.ShutDown();
+                App.QuitApp();
             }
 
             //Screen message processing...

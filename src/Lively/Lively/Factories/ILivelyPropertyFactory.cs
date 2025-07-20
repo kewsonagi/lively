@@ -1,6 +1,6 @@
-﻿using Lively.Common;
+﻿using Lively.Common.Services;
 using Lively.Models;
-using Lively.Services;
+using Lively.Models.Enums;
 
 namespace Lively.Factories
 {

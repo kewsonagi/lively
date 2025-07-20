@@ -1,18 +1,13 @@
-﻿using Lively.Common;
-using Lively.Common.API;
-using Lively.Common.Helpers;
+﻿using Lively.Common.Helpers;
 using Lively.Common.Helpers.Pinvoke;
 using Lively.Common.Helpers.Shell;
 using Lively.Models;
-using Lively.ViewModels;
+using Lively.Models.Enums;
+using Lively.Models.Message;
 using Lively.Views;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Linq;
-using System.Reflection.Metadata;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -28,7 +23,9 @@ namespace Lively.Core.Wallpapers
         private readonly IntPtr thumbnailSrc;
         private readonly Rectangle targetRect;
         private DwmThumbnailWrapper dwmThumbnail;
-        private Blank window;
+        private BlankWindow window;
+
+        public event EventHandler Exited;
 
         public DwmThumbnailPlayer(IntPtr thumbnailSrc, LibraryModel model, DisplayMonitor display, Rectangle targetRect)
         {
@@ -62,7 +59,7 @@ namespace Lively.Core.Wallpapers
             {
                 try
                 {
-                    window = new Blank()
+                    window = new BlankWindow()
                     {
                         WindowStartupLocation = WindowStartupLocation.Manual,
                         ResizeMode = ResizeMode.NoResize,
@@ -120,18 +117,14 @@ namespace Lively.Core.Wallpapers
             //nothing
         }
 
-        public void Stop()
-        {
-            //nothing
-        }
-
         public void Close()
         {
             _ = Application.Current.Dispatcher.Invoke(DispatcherPriority.Normal, new ThreadStart(delegate
             {
                 window.Close();
             }));
-            DesktopUtil.RefreshDesktop();
+            IsExited = true;
+            Exited?.Invoke(this, EventArgs.Empty);
         }
 
         public void Terminate()

@@ -1,10 +1,4 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
-using Lively.Common;
-using System;
-using System.ComponentModel;
-using System.IO;
-using Lively.Common.Extensions;
-using System.ComponentModel.DataAnnotations;
 
 namespace Lively.Models
 {
@@ -17,6 +11,9 @@ namespace Lively.Models
         private bool isDownloading;
 
         [ObservableProperty]
+        private bool isReadyToSet = true;
+
+        [ObservableProperty]
         private float downloadingProgress;
 
         [ObservableProperty]
@@ -26,13 +23,16 @@ namespace Lively.Models
         private LivelyInfoModel livelyInfo;
 
         [ObservableProperty]
-        private LibraryItemType dataType;
-
-        [ObservableProperty]
         private string filePath;
 
         [ObservableProperty]
         private string livelyInfoFolderPath;
+
+        [ObservableProperty]
+        private string livelyInfoLocalizationPath;
+
+        [ObservableProperty]
+        private string livelyPropertyLocalizationPath;
 
         [ObservableProperty]
         private string imagePath;
@@ -78,17 +78,5 @@ namespace Lively.Models
                 SetProperty(ref _desc, value);
             }
         }
-    }
-
-    public enum LibraryItemType
-    {
-        [Description("Importing..")]
-        processing,
-        [Description("Import complete.")]
-        ready,
-        cmdImport,
-        multiImport,
-        edit,
-        gallery,
     }
 }

@@ -126,7 +126,7 @@
   <data name="Audio.Header" xml:space="preserve">
     <value>Hlasitost</value>
   </data>
-  <data name="AudioGroup.Header" xml:space="preserve">
+  <data name="AudioGroup.Text" xml:space="preserve">
     <value>Zvuk</value>
   </data>
   <data name="Community.Description" xml:space="preserve">
@@ -183,7 +183,7 @@ Pokračujte pouze, pokud tato aplikace pochází z důvěryhodného zdroje.</val
     <value>Lively je minimalizován na systémovou lištu, pravým tlačítkem myši na ikonu pokračovat.</value>
   </data>
   <data name="DescriptionPleaseRestartLively" xml:space="preserve">
-    <value>Pro použití změněných nastavení restartujte prosím aplikaci</value>
+    <value>Prosím restartujte Live, aby se nastavení projevilo</value>
   </data>
   <data name="DescriptionPleaseStop" xml:space="preserve">
     <value>Před pokračováním prosím zastavte</value>
@@ -195,7 +195,7 @@ Pokračujte pouze, pokud tato aplikace pochází z důvěryhodného zdroje.</val
     <value>Currently restoring previous wallpaper(s), please wait...</value>
   </data>
   <data name="DescriptionScreenLayout" xml:space="preserve">
-    <value>Vybrat zobrazení</value>
+    <value>Vybrat displej a zobrazení</value>
   </data>
   <data name="DescriptionUpdateAvailable" xml:space="preserve">
     <value>Je dostupná nová verze softwaru!</value>
@@ -226,7 +226,7 @@ Aktualizace budou časté a mohou obsahovat chyby!</value>
     <value>Pro použití nového jazyka se restartuje</value>
   </data>
   <data name="Language.Header" xml:space="preserve">
-    <value>Jazyk Slavakia</value>
+    <value>Jazyky</value>
   </data>
   <data name="LivelyExceptionAppUpdateFail" xml:space="preserve">
     <value>Aktualizace se nezdařila; zkuste stáhnout instalační program z:
@@ -283,7 +283,7 @@ Pokud stále nefunguje, zavřete a spusťte Lively znova/restartujte okna.
   <data name="TextAllFiles" xml:space="preserve">
     <value>Všechny soubory</value>
   </data>
-  <data name="Application.Header" xml:space="preserve">
+  <data name="Application.Text" xml:space="preserve">
     <value>Aplikace</value>
   </data>
   <data name="Attribution.Header" xml:space="preserve">
@@ -340,8 +340,8 @@ Pokud stále nefunguje, zavřete a spusťte Lively znova/restartujte okna.
   <data name="DisplayPauseRulePerScreen.Content" xml:space="preserve">
     <value>Na obrazovku</value>
   </data>
-  <data name="TextDownload" xml:space="preserve">
-    <value>Stáhnout</value>
+  <data name="TextDownload.Content" xml:space="preserve">
+    <value>Cc</value>
   </data>
   <data name="EditWallpaper.Text" xml:space="preserve">
     <value>Upravit</value>
@@ -376,7 +376,7 @@ Pokud stále nefunguje, zavřete a spusťte Lively znova/restartujte okna.
   <data name="TextHours" xml:space="preserve">
     <value>hodin(y)</value>
   </data>
-  <data name="TextInstall" xml:space="preserve">
+  <data name="TextInstall.Content" xml:space="preserve">
     <value>Nainstalovat</value>
   </data>
   <data name="TextKeyboard.Content" xml:space="preserve">
@@ -494,7 +494,7 @@ Pokud stále nefunguje, zavřete a spusťte Lively znova/restartujte okna.
     <value>Podpora</value>
   </data>
   <data name="TextSwitchBranchDev" xml:space="preserve">
-    <value>Přepnout na stabilní (výchozí kanál)</value>
+    <value>Přepnout na beta (vývojový kanál)</value>
   </data>
   <data name="TextSwitchBranchOfficial" xml:space="preserve">
     <value>Přepnout na stabilní (výchozí kanál)</value>
@@ -547,7 +547,7 @@ Pokud stále nefunguje, zavřete a spusťte Lively znova/restartujte okna.
   <data name="TextUpdateAvailable" xml:space="preserve">
     <value>K dispozici je aktualizace!</value>
   </data>
-  <data name="TextUpdateCheck" xml:space="preserve">
+  <data name="TextUpdateCheck.Content" xml:space="preserve">
     <value>Zkontrolovat aktualizaci</value>
   </data>
   <data name="TextupdateCheckFail" xml:space="preserve">
@@ -563,7 +563,7 @@ Pokud stále nefunguje, zavřete a spusťte Lively znova/restartujte okna.
     <value>Video</value>
   </data>
   <data name="TextWallpaperCommandlineArgs" xml:space="preserve">
-    <value>Zadejte volitelné argumenty příkazového řádku</value>
+    <value>Možnosti spuštění</value>
   </data>
   <data name="WallpaperFitFill.Content" xml:space="preserve">
     <value>Vyplnit</value>
@@ -577,14 +577,14 @@ Pokud stále nefunguje, zavřete a spusťte Lively znova/restartujte okna.
   <data name="WallpaperFitUniformToFill.Content" xml:space="preserve">
     <value>Rovnoměrně vyplnit</value>
   </data>
-  <data name="WallpaperLayoutDuplicate.Content" xml:space="preserve">
-    <value>Duplikovat tapetu</value>
+  <data name="WallpaperLayoutDuplicate.Text" xml:space="preserve">
+    <value>Duplikovat</value>
   </data>
-  <data name="WallpaperLayoutPerScreen.Content" xml:space="preserve">
-    <value>Pouze vybraná obrazovka</value>
+  <data name="WallpaperLayoutPerScreen.Text" xml:space="preserve">
+    <value>Obrazovka</value>
   </data>
-  <data name="WallpaperLayoutSpan.Content" xml:space="preserve">
-    <value>Štěpení napříč obrazovkami</value>
+  <data name="WallpaperLayoutSpan.Text" xml:space="preserve">
+    <value>Rozpětí</value>
   </data>
   <data name="WallpaperType.Text" xml:space="preserve">
     <value>Typ</value>
@@ -659,9 +659,7 @@ Pokud stále nefunguje, zavřete a spusťte Lively znova/restartujte okna.
     <value>Změnit přehrávání při spuštění relace vzdálené plochy</value>
   </data>
   <data name="TipScreensaver" xml:space="preserve">
-    <value>73 / 5 000
-Výsledky překladu
-Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapetu</value>
+    <value>Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapetu</value>
   </data>
   <data name="StreamWallpaperDetect.Description" xml:space="preserve">
     <value>Pokud je zjištěn podporovaný odkaz video streamu, použijte video přehrávač namísto načítání webové stránky</value>
@@ -799,7 +797,7 @@ Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapet
     <value>Ztlumit</value>
   </data>
   <data name="PauseAlgorithm.Header" xml:space="preserve">
-    <value>Pozastavit algoritmus</value>
+    <value>Algoritmus pozastavení</value>
   </data>
   <data name="TitlePerformance" xml:space="preserve">
     <value>Výkon</value>
@@ -825,11 +823,8 @@ Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapet
   <data name="ControlPanel.Title" xml:space="preserve">
     <value>Ovládací panel</value>
   </data>
-  <data name="TitleScreensaver" xml:space="preserve">
+  <data name="TitleScreensaver.Content" xml:space="preserve">
     <value>Spořič obrazovky</value>
-  </data>
-  <data name="TitleScreensaverLockOnResume" xml:space="preserve">
-    <value>Při obnovení, zobrazit přihlašovací obrazovku</value>
   </data>
   <data name="TitleSelectFile" xml:space="preserve">
     <value>Vybrat Soubor</value>
@@ -856,7 +851,7 @@ Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapet
   <data name="TitleStreamWallpaperVideoQuality" xml:space="preserve">
     <value>Kvalita videa</value>
   </data>
-  <data name="System.Header" xml:space="preserve">
+  <data name="System.Text" xml:space="preserve">
     <value>Systém</value>
   </data>
   <data name="TaskbarTheme.Header" xml:space="preserve">
@@ -877,8 +872,11 @@ Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapet
   <data name="VideoHardwareDecode.Header" xml:space="preserve">
     <value>Dekódování GPU</value>
   </data>
-  <data name="TitleWallpaper" xml:space="preserve">
+  <data name="TitleWallpaper.Content" xml:space="preserve">
     <value>Tapeta</value>
+  </data>
+  <data name="TitleCustomise.Content" xml:space="preserve">
+    <value>Přizpůsobení</value>
   </data>
   <data name="WallpaperDir.Header" xml:space="preserve">
     <value>Adresář tapet</value>
@@ -895,7 +893,7 @@ Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapet
   <data name="WallpaperLayout.Header" xml:space="preserve">
     <value>Metoda umístění</value>
   </data>
-  <data name="WallpaperPlaybackGroup.Header" xml:space="preserve">
+  <data name="WallpaperPlaybackGroup.Text" xml:space="preserve">
     <value>Přehrávání tapety</value>
   </data>
   <data name="TitleWarning" xml:space="preserve">
@@ -919,7 +917,7 @@ Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapet
   <data name="FastUI.Header" xml:space="preserve">
     <value>Rychlé spuštění</value>
   </data>
-  <data name="WallpaperDirGroup.Header" xml:space="preserve">
+  <data name="WallpaperDirGroup.Text" xml:space="preserve">
     <value>Soubor</value>
   </data>
   <data name="AppThemeDark.Content" xml:space="preserve">
@@ -932,15 +930,15 @@ Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapet
     <value>Systémové</value>
   </data>
   <data name="WindowsSettingsColor.Content" xml:space="preserve">
-    <value>Nastavení barevy okna</value>
+    <value>Nastavení barvy Windows</value>
   </data>
-  <data name="LaptopWallpaperPlaybackGroup.Header" xml:space="preserve">
-    <value>Notebooky</value>
+  <data name="LaptopWallpaperPlaybackGroup.Text" xml:space="preserve">
+    <value>Laptops</value>
   </data>
-  <data name="DeveloperGroup.Header" xml:space="preserve">
+  <data name="DeveloperGroup.Text" xml:space="preserve">
     <value>Vývojář</value>
   </data>
-  <data name="AppearanceBehaviour.Header" xml:space="preserve">
+  <data name="AppearanceBehaviour.Text" xml:space="preserve">
     <value>Vzhled a chování</value>
   </data>
   <data name="ActiveWallpapers.Label" xml:space="preserve">
@@ -997,11 +995,11 @@ Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapet
   <data name="Screensaver.Header" xml:space="preserve">
     <value>Typ spořiče obrazovky</value>
   </data>
-  <data name="ScreensaverModeDifferentWallpaper.Content" xml:space="preserve">
-    <value>Nastavit samostatně</value>
+  <data name="ScreensaverModeDifferentWallpaper.Text" xml:space="preserve">
+    <value>Vlastní</value>
   </data>
-  <data name="ScreensaverModeSameWallpaper.Content" xml:space="preserve">
-    <value>Stejně jako běžící tapeta</value>
+  <data name="ScreensaverModeSameWallpaper.Text" xml:space="preserve">
+    <value>Zrcadlit pozadí</value>
   </data>
   <data name="ScreensaverPlugin.Title" xml:space="preserve">
     <value>Je vyžadován plug-in</value>
@@ -1085,7 +1083,7 @@ Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapet
     <value>Další poznámky</value>
   </data>
   <data name="TextReportWallpaper.Text" xml:space="preserve">
-    <value>Zpráva</value>
+    <value>Report</value>
   </data>
   <data name="TitleReportWallpaper.Text" xml:space="preserve">
     <value>Nahlásit tapetu</value>
@@ -1177,7 +1175,7 @@ Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapet
   <data name="DevelopmentOnHold.Message" xml:space="preserve">
     <value>Vývoj této funkce je pozastaven</value>
   </data>
-  <data name="WallpaperPluginGroup.Header" xml:space="preserve">
+  <data name="WallpaperPluginGroup.Text" xml:space="preserve">
     <value>Doplňky</value>
   </data>
   <data name="AddWallpaperAdvanced.Description" xml:space="preserve">
@@ -1220,6 +1218,51 @@ Po uplynutí doby nečinnosti použijte jako spořič obrazovky aktuální tapet
     <value>Vyžadováno stažení</value>
   </data>
   <data name="TitleDownload.Content" xml:space="preserve">
-    <value>Stáhnout</value>
+    <value>Cc</value>
+  </data>
+  <data name="TextBecomePatreonMember.Content" xml:space="preserve">
+    <value>Staňte se podporovatelem Patreona</value>
+  </data>
+  <data name="TextPatreonMembersThankYou.Text" xml:space="preserve">
+    <value>Díky všem členům, kteří tento projekt podporují.</value>
+  </data>
+  <data name="TitlePatreon.Text" xml:space="preserve">
+    <value>Podporovatelé Patreonu</value>
+  </data>
+  <data name="SelectScreensaverCustomMode.Text" xml:space="preserve">
+    <value>Vybrat spořič obrazovky</value>
+  </data>
+  <data name="WebViewRequired.Message" xml:space="preserve">
+    <value>Pro zobrazení tohoto obsahu je vyžadován Microsoft WebView2</value>
+  </data>
+  <data name="WebViewRequired.Title" xml:space="preserve">
+    <value>Je vyžadován plug-in</value>
+  </data>
+  <data name="AppMusicExclusion.Description" xml:space="preserve">
+    <value>Vyberte aplikace, při kterých nechcete, aby se zobrazovali detaily o hudbě</value>
+  </data>
+  <data name="AppMusicExclusion.Header" xml:space="preserve">
+    <value>Vynechané aplikace</value>
+  </data>
+  <data name="RestartCommand.Content" xml:space="preserve">
+    <value>Restartovat</value>
+  </data>
+  <data name="WallpaperMusicGroup.Text" xml:space="preserve">
+    <value>Hudba</value>
+  </data>
+  <data name="WallpaperRestartRequiredNotify.Message" xml:space="preserve">
+    <value>Aby se nastavení projevilo, je třeba restartovat pozadí</value>
+  </data>
+  <data name="LanguageSettingsItemSystemDefault.Content" xml:space="preserve">
+    <value>Stejný jako systémový</value>
+  </data>
+  <data name="InfoSettingsRestartRequest.Message" xml:space="preserve">
+    <value>Prosím restartujte aplikaci, aby se nastavení projevilo.</value>
+  </data>
+  <data name="ScreensaverLockOnResume.Header" xml:space="preserve">
+    <value>Při obnovení, zobrazit přihlašovací obrazovku</value>
+  </data>
+  <data name="ScreensaverFadeIn.Header" xml:space="preserve">
+    <value>Fade to black before start</value>
   </data>
 </root>
